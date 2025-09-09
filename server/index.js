@@ -3,8 +3,6 @@ import cors from 'cors';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import dayjs from 'dayjs';
-import path from 'path';
-import { fileURLToPath } from 'url';
 
 const app = express();
 app.use(cors());
@@ -45,16 +43,6 @@ async function fetchDigits(url, howMany) {
   const joined = digits.join('');
   return /^\d+$/.test(joined) && joined.length === howMany ? joined : null;
 }
-
-// resolve __dirname with ESM
-const __filename = fileURLToPath(import.meta.url);
-const __dirname  = path.dirname(__filename);
-
-// serve the built-in static UI
-app.use(express.static(path.join(__dirname, 'public')));
-
-// health check (optional)
-app.get('/healthz', (_req, res) => res.send('ok'));
 
 async function tryPaths(base, paths, n) {
   for (const p of paths) {
