@@ -10,8 +10,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 
-  <!-- Tesseract for OCR (keptt) -->
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <!-- Tesseract for OCR (kept) -->
+  <script>
+  const API_BASE=(location.hostname==='localhost'||location.hostname==='127.0.0.1')?'http://localhost:3000':'';
+  const api=(p)=>`${API_BASE}${p}`;
+</script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
   <style>
     :root {
@@ -202,12 +206,6 @@
     const $ = (sel, p=document) => p.querySelector(sel);
     const $$ = (sel, p=document) => Array.from(p.querySelectorAll(sel));
     const todayStr = () => new Date().toISOString().slice(0,10);
-    const API_BASE =
-    (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
-    ? 'http://localhost:3000'  // local dev
-    : '';                      // same origin on Render
-
-const api = (p) => `${API_BASE}${p}`;
 
     function readJSON(key, fallback) { try { const t = localStorage.getItem(key); return t ? JSON.parse(t) : fallback; } catch(e) { console.error('readJSON', key, e); return fallback; } }
     function writeJSON(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
@@ -448,7 +446,7 @@ function maybeAdvanceSelectedDate(iso){
      * Backend fetch (server/ index.js) — NY now, more later
      **********************************************************/
     async function fetchNY(){
-      const r = await fetch(api('/api/ny/latest'), { cache: 'no-store' });
+      const r = await fetch(api('/api/ny/latest', { cache: 'no-store' });
       if(!r.ok) throw new Error('NY bridge failed '+r.status);
       return await r.json(); // { dateISO, midday, evening }
     }
@@ -464,7 +462,7 @@ function maybeAdvanceSelectedDate(iso){
     }
 
  async function fetchNJ(){
-  const r = await fetch(api('/api/nj/latest'), { cache: 'no-store' });
+  const r = await fetch(api('/api/nj/latest', { cache: 'no-store' });
   if(!r.ok) throw new Error('NJ bridge failed '+r.status);
   return await r.json();
 }
@@ -480,7 +478,7 @@ async function syncNJ(){
 
 // === Connecticut (map midday->Day, evening->Night) ===
 async function fetchCT(){
-const r = await fetch(api('/api/ct/latest'), { cache: 'no-store' });
+  const r = await fetch(api('/api/ct/latest', { cache: 'no-store' });
   if(!r.ok) throw new Error('CT bridge failed '+r.status);
   return await r.json();
 }
@@ -496,7 +494,7 @@ async function syncCT(){
 
 // === Florida ===
 async function fetchFL(){
-const r = await fetch(api('/api/fl/latest'), { cache: 'no-store' });
+  const r = await fetch(api('/api/fl/latest', { cache: 'no-store' });
   if(!r.ok) throw new Error('FL bridge failed '+r.status);
   return await r.json();
 }
