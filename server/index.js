@@ -29,6 +29,12 @@ async function fetchHtml(url){ const {data}=await axios.get(url,HTTP); return da
 function parseDateFromText(text){
   const y = dayjs().year();
   const t = (text||'').replace(/\s+/g,' ');
+
+  // Fast-path: "today" / "tonight" → use current date
+  if (/\b(today|tonight|this (?:evening|afternoon|morning))\b/i.test(t)) {
+    return dayjs();
+  }
+
   // Month-name format: "September 10, 2025" or "Sep 10"
   const m1 = t.match(/\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{1,2})(?:,\s*(\d{4}))?/i);
   if (m1){
@@ -38,6 +44,7 @@ function parseDateFromText(text){
     const Y = m1[3]? parseInt(m1[3],10): y;
     return dayjs(`${Y}-${String(M).padStart(2,'0')}-${String(D).padStart(2,'0')}`);
   }
+
   // Numeric format: 9/10/2025 or 9/10
   const m2 = t.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
   if (m2){
@@ -46,8 +53,19 @@ function parseDateFromText(text){
     if (Y<100) Y = 2000+Y;
     return dayjs(`${Y}-${String(M).padStart(2,'0')}-${String(D).padStart(2,'0')}`);
   }
-  return null;
+  return null; // let caller default to "today" instead of scanning the whole section
 }
+
+function cleanTextBlocks(txt){
+  let t = (txt || '').replace(/\s+/g, ' ');
+  // strip money, times, and boilerplate that creates false positives
+  t = t.replace(/\$[0-9][0-9,.]*/g, ' ');
+  t = t.replace(/\b\d{1,2}:\d{2}(\s?[ap]m)?\b/gi, ' ');  // 12:59, 9:45pm
+  t = t.replace(/\b(prize|top prize|payout|how to|odds|draws? at)\b[^.!?\n]*/gi, ' ');
+  return t;
+}
+
+
 
 // ── digit extraction (structural first, then safe text) ────────────────────────
 function pickConsecutiveSingleDigitNodes($,$container,n){
@@ -61,34 +79,48 @@ function pickConsecutiveSingleDigitNodes($,$container,n){
   return null;
 }
 function pickNDigitsFromTextSafe($,$container,n){
-  let txt = $container.text().replace(/\s+/g,' ');
-  txt = txt.replace(/\$[0-9][0-9,.]*/g,' ');
-  txt = txt.replace(/\b(prize|top prize|payout|how to|odds)\b[^|]*/gi,' ');
-  txt = txt.replace(/\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[^.]+/gi,' ');
+  const txt = cleanTextBlocks($container.text());
   const m = txt.match(new RegExp(`\\b\\d{${n}}\\b`));
-  return m? m[0] : null;
+  return m ? m[0] : null;
 }
+
+function nearestContainerWithNDigits($,$start,n,$limit){
+  // climb to the smallest ancestor that actually contains n-digit numbers
+  let $node = $start;
+  for (let i=0; i<6; i++){
+    let $cand = $node.closest('li,article,div,section');
+    if (!$cand.length) break;
+    const has = new RegExp(`\\b\\d{${n}}\\b`).test(cleanTextBlocks($cand.text()));
+    if (has) return $cand;
+    $node = $cand.parent();
+    if ($limit && $node.is($limit)) break;
+  }
+  return $start;
+}
+
 function extractByLabel($, label, n){
+  // 1) scope to "Latest numbers" section if present
   let $section = $('section').filter((_,el)=>{
     const h=$(el).find('h1,h2,h3').first().text().trim().toLowerCase();
     return h.includes('latest') && h.includes('number');
   }).first();
-  if(!$section.length) $section=$.root();
+  if(!$section.length) $section = $.root();
 
-  let $labelEl = $section.find('*').filter((_,el)=>
-    $(el).text().trim().toLowerCase().includes(label.toLowerCase())
-  ).first();
+  // 2) strict word-boundary match for the label (avoids Day→Midday confusion)
+  const re = new RegExp(`\\b${label.toLowerCase()}\\b`, 'i');
+  let $labelEl = $section.find('*').filter((_,el)=> re.test($(el).text().trim().toLowerCase()) ).first();
   if(!$labelEl.length) return {digits:null,date:null};
 
-  let $container = $labelEl.closest('li,article,div'); if(!$container.length) $container=$labelEl;
+  // 3) pick the nearest container that actually holds numbers
+  let $container = nearestContainerWithNDigits($, $labelEl, n, $section);
+  if(!$container.length) $container = $labelEl;
 
   // digits
   const viaNodes = pickConsecutiveSingleDigitNodes($,$container,n);
-  const digits = viaNodes || pickNDigitsFromTextSafe($,$container,n);
+  const digits   = viaNodes || pickNDigitsFromTextSafe($,$container,n);
 
-  // date (look near the same container)
-  const around = $container.text();
-  const date = parseDateFromText(around) || parseDateFromText($section.text());
+  // date: trust the local container; if absent, leave null (caller will default to "today")
+  const date = parseDateFromText($container.text());
 
   return { digits, date };
 }
