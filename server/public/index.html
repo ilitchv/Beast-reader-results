@@ -253,7 +253,8 @@ function maybeAdvanceSelectedDate(iso){
   const synced = (iso || new Date().toISOString()).slice(0,10);
   const current = (JSON.parse(localStorage.getItem('br_selected_date') || 'null')) || new Date().toISOString().slice(0,10);
   const drawerOpen = document.getElementById('drawer').classList.contains('open');
-  if (!drawerOpen && current !== synced) {
+  // only move forward; never regress the selected date
+  if (!drawerOpen && synced > current) {
     localStorage.setItem('br_selected_date', JSON.stringify(synced));
   }
 }
