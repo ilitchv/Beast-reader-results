@@ -23,7 +23,10 @@ const HTTP = {
   maxRedirects: 5
 };
 
-async function fetchHtml(url){ const {data}=await axios.get(url,HTTP); return data; }
+async function fetchHtml(url){
+  const {data} = await axios.get(url, { ...HTTP, params: { t: Date.now() }});
+  return data;
+}
 
 // ── helpers to parse date strings we see on pages ──────────────────────────────
 function parseDateFromText(text){
@@ -212,17 +215,41 @@ const U = {
 
   // CT and FL: keep as-is, but adding day/night-number fallbacks is fine too
   ct: {
-    p3: { mid: { urls:['https://www.lotteryusa.com/connecticut/play-3-day/','https://www.lotteryusa.com/connecticut/play-3/'], label:'Day' },
-          eve: { urls:['https://www.lotteryusa.com/connecticut/play-3-night/','https://www.lotteryusa.com/connecticut/play-3/'], label:'Night' } },
-    p4: { mid: { urls:['https://www.lotteryusa.com/connecticut/play-4-day/','https://www.lotteryusa.com/connecticut/play-4/'], label:'Day' },
-          eve: { urls:['https://www.lotteryusa.com/connecticut/play-4-night/','https://www.lotteryusa.com/connecticut/play-4/'], label:'Night' } }
+    p3: { mid: { urls:[
+                    'https://www.lotteryusa.com/connecticut/day-play-3/',
+                    'https://www.lotteryusa.com/connecticut/play-3/'
+                  ], label:'Day' },
+          eve: { urls:[
+                    'https://www.lotteryusa.com/connecticut/night-play-3/',
+                    'https://www.lotteryusa.com/connecticut/play-3/'
+                  ], label:'Night' } },
+    p4: { mid: { urls:[
+                    'https://www.lotteryusa.com/connecticut/day-play-4/',
+                    'https://www.lotteryusa.com/connecticut/play-4/'
+                  ], label:'Day' },
+          eve: { urls:[
+                    'https://www.lotteryusa.com/connecticut/night-play-4/',
+                    'https://www.lotteryusa.com/connecticut/play-4/'
+                  ], label:'Night' } }
   },
 
   fl: {
-    p3: { mid: { urls:['https://www.lotteryusa.com/florida/pick-3-midday/','https://www.lotteryusa.com/florida/pick-3/'], label:'Midday' },
-          eve: { urls:['https://www.lotteryusa.com/florida/pick-3/'], label:'Evening' } },
-    p4: { mid: { urls:['https://www.lotteryusa.com/florida/pick-4-midday/','https://www.lotteryusa.com/florida/pick-4/'], label:'Midday' },
-          eve: { urls:['https://www.lotteryusa.com/florida/pick-4/'], label:'Evening' } }
+    p3: { mid: { urls:[
+                    'https://www.lotteryusa.com/florida/midday-pick-3/',
+                    'https://www.lotteryusa.com/florida/pick-3/'
+                  ], label:'Midday' },
+          eve: { urls:[
+                    'https://www.lotteryusa.com/florida/evening-pick-3/',
+                    'https://www.lotteryusa.com/florida/pick-3/'
+                  ], label:'Evening' } },
+    p4: { mid: { urls:[
+                    'https://www.lotteryusa.com/florida/midday-pick-4/',
+                    'https://www.lotteryusa.com/florida/pick-4/'
+                  ], label:'Midday' },
+          eve: { urls:[
+                    'https://www.lotteryusa.com/florida/evening-pick-4/',
+                    'https://www.lotteryusa.com/florida/pick-4/'
+                  ], label:'Evening' } }
   }
 };
 
