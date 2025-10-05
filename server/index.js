@@ -98,33 +98,55 @@ function nearestContainerWithNDigits($,$start,n,$limit){
   return $start;
 }
 
-function extractByLabel($, label, n){
-  // 1) scope to "Latest numbers" section if present
-  let $section = $('section').filter((_,el)=>{
-    const h=$(el).find('h1,h2,h3').first().text().trim().toLowerCase();
+function extractByLabel($, label, n) {
+  // 1) Limit scope to the "Latest numbers" section if present
+  let $section = $('section').filter((_, el) => {
+    const h = $(el).find('h1,h2,h3').first().text().trim().toLowerCase();
     return h.includes('latest') && h.includes('number');
   }).first();
-  if(!$section.length) $section = $.root();
+  if (!$section.length) $section = $.root();
 
-  // 2) strict word-boundary match for the label (avoids Day→Midday confusion)
+  // 2) Strict, whole-word label match (e.g., Day / Night / Midday / Evening)
   const re = new RegExp(`\\b${label.toLowerCase()}\\b`, 'i');
-  let $labelEl = $section.find('*').filter((_,el)=> re.test($(el).text().trim().toLowerCase()) ).first();
-  if(!$labelEl.length) return {digits:null,date:null};
+  const $labelEl = $section.find('*').filter((_, el) =>
+    re.test($(el).text().trim().toLowerCase())
+  ).first();
+  if (!$labelEl.length) return { digits: null, date: null };
 
-  // 3) pick the nearest container that actually holds numbers
-  let $container = nearestContainerWithNDigits($, $labelEl, n, $section);
-  if(!$container.length) $container = $labelEl;
+  // 3) Walk *forward* from the label (siblings-first) and stop if we hit the next label.
+  const NEXT_LABEL_RE = /\b(day|night|midday|evening)\b/i;
 
-  // digits
-  const viaNodes = pickConsecutiveSingleDigitNodes($,$container,n);
-  const digits   = viaNodes || pickNDigitsFromTextSafe($,$container,n);
+  // Build a list of candidate nodes near the label, in DOM order
+  const candidates = [];
+  let walker = $labelEl;
+  for (let steps = 0; steps < 40; steps++) {
+    // Start with the label node, then explore its immediate next siblings,
+    // then descend one level (avoids jumping to a wide ancestor that contains both draws)
+    const $next = walker.next();
+    if (!$next.length) break;
+    walker = $next;
 
-  // date: trust the local container; if absent, leave null (caller will default to "today")
-  const date = parseDateFromText($container.text());
+    const text = walker.text();
+    if (steps > 0 && NEXT_LABEL_RE.test(text) && !re.test(text)) break; // we reached the other draw's block
 
-  return { digits, date };
+    candidates.push(walker);
+    // also consider small blocks inside this node
+    candidates.push(...walker.find('li,div,p,span').toArray().map(el => $(el)));
+    if (candidates.length > 80) break;
+  }
+
+  // 4) Prefer digit-by-digit nodes; fall back to safe text
+  for (const $cand of candidates) {
+    const d1 = pickConsecutiveSingleDigitNodes($, $cand, n);
+    if (d1) return { digits: d1, date: parseDateFromText($cand.text()) || parseDateFromText($labelEl.text()) };
+    const d2 = pickNDigitsFromTextSafe($, $cand, n);
+    if (d2) return { digits: d2, date: parseDateFromText($cand.text()) || parseDateFromText($labelEl.text()) };
+  }
+
+  // 5) Last resort: use the label element itself
+  const d3 = pickConsecutiveSingleDigitNodes($, $labelEl, n) || pickNDigitsFromTextSafe($, $labelEl, n);
+  return { digits: d3, date: parseDateFromText($labelEl.text()) };
 }
-
 // ── try a list of URLs; return {digits,date} without throwing ─────────────────
 async function tryUrls(urls,label,n,tag){
   for(const u of urls){
