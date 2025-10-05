@@ -475,6 +475,7 @@ async function syncNJ(){
     if(nj.midday)  Store.setById('usa/nj/Midday',  nj.midday,  nj.dateISO);
     if(nj.evening) Store.setById('usa/nj/Evening', nj.evening, nj.dateISO);
     maybeAdvanceSelectedDate(nj.dateISO);
+    buildPublicBoard();
     console.info('NJ updated', nj);
   }catch(e){ console.warn('NJ sync failed', e); }
 }
@@ -491,6 +492,7 @@ async function syncCT(){
     if(ct.midday)  Store.setById('usa/ct/Day',   ct.midday,  ct.dateISO);
     if(ct.evening) Store.setById('usa/ct/Night', ct.evening, ct.dateISO);
     maybeAdvanceSelectedDate(ct.dateISO);
+    buildPublicBoard();
     console.info('CT updated', ct);
   }catch(e){ console.warn('CT sync failed', e); }
 }
@@ -507,6 +509,7 @@ async function syncFL(){
     if(fl.midday)  Store.setById('usa/fl/Midday',  fl.midday,  fl.dateISO);
     if(fl.evening) Store.setById('usa/fl/Evening', fl.evening, fl.dateISO);
     maybeAdvanceSelectedDate(fl.dateISO);
+    buildPublicBoard();
     console.info('FL updated', fl);
   }catch(e){ console.warn('FL sync failed', e); }
 }
