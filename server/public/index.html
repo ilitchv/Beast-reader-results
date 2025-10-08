@@ -261,33 +261,6 @@ function maybeAdvanceSelectedDate(iso){
   }
 }
 
-function extractRowByLabel($, label, n) {
-  const labelRe = new RegExp(`\\b${label}\\b`, 'i');
-
-  // Pick a tight scope just under the "Latest numbers" heading if present
-  let $scope = $.root();
-  const $h = $('h1,h2,h3').filter((_, el) =>
-    /latest\s+numbers/i.test($(el).text())
-  ).first();
-  if ($h.length) $scope = $h.parent();
-
-  // Iterate rows/blocks likely to hold a single draw line
-  const rowSel = 'tr, li, .row, .result, .draw, .results-row, .c-results-card, div';
-  let best = null;
-
-  $scope.find(rowSel).each((_, el) => {
-    const $el = $(el);
-    const text = $el.text();
-    if (!labelRe.test(text)) return;
-
-    // Prefer per-digit spans, fallback to a safe text scan
-    const d1 = pickConsecutiveSingleDigitNodes($, $el, n);
-    const d2 = d1 || pickNDigitsFromTextSafe($, $el, n);
-    if (d2) { best = { digits: d2, date: parseDateFromText(text) || parseDateFromText($scope.text()) }; return false; }
-  });
-
-  return best || { digits: null, date: null };
-}    
     /**********************************************************
      * Store adapter — reads/writes BOTH schemas safely
      **********************************************************/
