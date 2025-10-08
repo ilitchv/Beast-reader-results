@@ -29,6 +29,25 @@ async function fetchHtml(url){
 }
 
 // ── helpers to parse date strings we see on pages ──────────────────────────────
+// Extract "the first n-digit result" from the main results area (no label needed)
+function extractFirstInLatest($, n) {
+  // try a narrow container first (table/list/section under main/article)
+  const scopes = ['main', 'article', 'section', '.results', 'table', 'ul', 'ol'];
+  for (const sel of scopes) {
+    const $blk = $(sel).first();
+    if ($blk.length) {
+      const bySpans = pickConsecutiveSingleDigitNodes($, $blk, n);
+      if (bySpans) return bySpans;
+      const byText = pickNDigitsFromTextSafe($, $blk, n);
+      if (byText) return byText;
+    }
+  }
+  // fall back to whole doc
+  const bySpans = pickConsecutiveSingleDigitNodes($, $.root(), n);
+  if (bySpans) return bySpans;
+  return pickNDigitsFromTextSafe($, $.root(), n);
+}
+
 function parseDateFromText(text){
   const y = dayjs().year();
   const t = (text||'').replace(/\s+/g,' ');
@@ -151,18 +170,30 @@ function extractByLabel($, label, n) {
   return { digits: d3, date: parseDateFromText($labelEl.text()) };
 }
 // ── try a list of URLs; return {digits,date} without throwing ─────────────────
-async function tryUrls(urls,label,n,tag){
-  for(const u of urls){
+async function tryUrls(urls, label, n, tag){
+  for (const u of urls){
     try{
       const html = await fetchHtml(u);
-      const $ = cheerio.load(html);
-      const {digits,date} = extractByLabel($,label,n);
-      if(digits) return {digits,date};
+      const $    = cheerio.load(html);
+
+      // If we're on CT day/night dedicated pages, don't rely on label text.
+      const isCtDay   = /connecticut\/day-play-(3|4)\//i.test(u);
+      const isCtNight = /connecticut\/night-play-(3|4)\//i.test(u);
+      if (isCtDay || isCtNight) {
+        const digits = extractFirstInLatest($, n);
+        const date   = parseDateFromText($.root().text());
+        if (digits) return { digits, date };
+        continue;
+      }
+
+      // Otherwise, do the normal label-scoped extraction
+      const {digits, date} = extractByLabel($, label, n);
+      if (digits) return { digits, date };
     }catch(e){
       console.log(`[WARN] ${tag} ${u} -> ${e?.response?.status || e.message}`);
     }
   }
-  return {digits:null,date:null};
+  return {digits:null, date:null};
 }
 
 // ── URL map with robust fallbacks: specific page first, then generic page ─────
