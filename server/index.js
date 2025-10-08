@@ -48,34 +48,33 @@ function extractFirstInLatest($, n) {
   return pickNDigitsFromTextSafe($, $.root(), n);
 }
 
-function extractRowByLabel($, label, n) {
-  const labelRe = new RegExp(`\\b${label}\\b`, 'i');
-
-  // Pick a tight scope just under the "Latest numbers" heading if present
-  let $scope = $.root();
-  const $h = $('h1,h2,h3').filter((_, el) =>
-    /latest\s+numbers/i.test($(el).text())
-  ).first();
-  if ($h.length) $scope = $h.parent();
-
-  // Iterate rows/blocks likely to hold a single draw line
-  const rowSel = 'tr, li, .row, .result, .draw, .results-row, .c-results-card, div';
-  let best = null;
-
-  $scope.find(rowSel).each((_, el) => {
-    const $el = $(el);
-    const text = $el.text();
-    if (!labelRe.test(text)) return;
-
-    // Prefer per-digit spans, fallback to a safe text scan
-    const d1 = pickConsecutiveSingleDigitNodes($, $el, n);
-    const d2 = d1 || pickNDigitsFromTextSafe($, $el, n);
-    if (d2) { best = { digits: d2, date: parseDateFromText(text) || parseDateFromText($scope.text()) }; return false; }
-  });
-
-  return best || { digits: null, date: null };
-}
-
+// Accept "Day", "Daytime" for Day and just "Night" for night.
+ const CT_LABEL_RE = {
+  Day: /(day(?:time)?)/i,   // match "Day" or "Daytime"
+  Night: /(night)/i
+};
+ function extractRowByLabel($, label, n) {
+   const labelRe = CT_LABEL_RE[label] || new RegExp(label, 'i');
+   // Don’t rely on a specific heading; use the whole doc but prefer small blocks that contain both the label and n digits.
+   const rowSel = 'tr, li, .row, .result, .draw, .results-row, .c-results-card, section, article, div';
+   let best = null, bestSize = Infinity;
+   $(rowSel).each((_, el) => {
+     const $el = $(el);
+     const text = $el.text();
+     if (!labelRe.test(text)) return;
+     // must contain at least n digits somewhere
+     const hasNDigits = new RegExp(`\\d[^\\d]*`.repeat(n)).test(text);
+     if (!hasNDigits) return;
+     // Prefer the smallest node that satisfies both conditions
+     const size = $el.text().length;
+     if (size < bestSize) { best = $el; bestSize = size; }
+   });
+   if (!best) return { digits: null, date: null };
+   const d1 = pickConsecutiveSingleDigitNodes($, best, n);
+   const d2 = d1 || pickNDigitsFromTextSafe($, best, n);
+   const date = parseDateFromText(best.text()) || parseDateFromText($.root().text());
+   return d2 ? { digits: d2, date } : { digits: null, date: null };
+ }
 function parseDateFromText(text){
   const y = dayjs().year();
   const t = (text||'').replace(/\s+/g,' ');
@@ -128,11 +127,18 @@ function pickConsecutiveSingleDigitNodes($,$container,n){
   }
   return null;
 }
-function pickNDigitsFromTextSafe($,$container,n){
-  const txt = cleanTextBlocks($container.text());
-  const m = txt.match(new RegExp(`\\b\\d{${n}}\\b`));
-  return m ? m[0] : null;
-}
+// Allow digits separated by spaces/spans; then collapse to the first n digits.
+ function pickNDigitsFromTextSafe($,$container,n){
+   const txt = cleanTextBlocks($container.text());
+   // e.g., "6 4 1" (P3) or "0 2 7 0" (P4) when spans flatten oddly.
+   const mSpan = txt.match(new RegExp(`(?:\\d\\D*){${n}}`));
+   if (mSpan) {
+     const d = mSpan[0].replace(/\\D+/g,'').slice(0,n);
+     if (d.length === n) return d;
+   }
+   const mTight = txt.match(new RegExp(`\\d{${n}}`));
+   return mTight ? mTight[0] : null;
+ }
 
 function nearestContainerWithNDigits($,$start,n,$limit){
   // climb to the smallest ancestor that actually contains n-digit numbers
@@ -157,7 +163,7 @@ function extractByLabel($, label, n) {
   if (!$section.length) $section = $.root();
 
   // 2) Strict, whole-word label match (e.g., Day / Night / Midday / Evening)
-  const re = new RegExp(`\\b${label.toLowerCase()}\\b`, 'i');
+  const re = CT_LABEL_RE[label] || new RegExp(label, 'i');
   const $labelEl = $section.find('*').filter((_, el) =>
     re.test($(el).text().trim().toLowerCase())
   ).first();
@@ -267,22 +273,10 @@ const U = {
 
   // CT and FL: keep as-is, but adding day/night-number fallbacks is fine too
   ct: {
-    p3: { mid: { urls:[
-                    'https://www.lotteryusa.com/connecticut/day-play-3/',
-                    'https://www.lotteryusa.com/connecticut/play-3/'
-                  ], label:'Day' },
-          eve: { urls:[
-                    'https://www.lotteryusa.com/connecticut/night-play-3/',
-                    'https://www.lotteryusa.com/connecticut/play-3/'
-                  ], label:'Night' } },
-    p4: { mid: { urls:[
-                    'https://www.lotteryusa.com/connecticut/day-play-4/',
-                    'https://www.lotteryusa.com/connecticut/play-4/'
-                  ], label:'Day' },
-          eve: { urls:[
-                    'https://www.lotteryusa.com/connecticut/night-play-4/',
-                    'https://www.lotteryusa.com/connecticut/play-4/'
-                  ], label:'Night' } }
+   p3: { mid: { urls:[ 'https://www.lotteryusa.com/connecticut/play-3/' ], label:'Day' },
+         eve: { urls:[ 'https://www.lotteryusa.com/connecticut/play-3/' ], label:'Night' } },
+   p4: { mid: { urls:[ 'https://www.lotteryusa.com/connecticut/play-4/' ], label:'Day' },
+         eve: { urls:[ 'https://www.lotteryusa.com/connecticut/play-4/' ], label:'Night' } }
   },
 
   fl: {
