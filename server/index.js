@@ -48,6 +48,34 @@ function extractFirstInLatest($, n) {
   return pickNDigitsFromTextSafe($, $.root(), n);
 }
 
+function extractRowByLabel($, label, n) {
+  const labelRe = new RegExp(`\\b${label}\\b`, 'i');
+
+  // Pick a tight scope just under the "Latest numbers" heading if present
+  let $scope = $.root();
+  const $h = $('h1,h2,h3').filter((_, el) =>
+    /latest\s+numbers/i.test($(el).text())
+  ).first();
+  if ($h.length) $scope = $h.parent();
+
+  // Iterate rows/blocks likely to hold a single draw line
+  const rowSel = 'tr, li, .row, .result, .draw, .results-row, .c-results-card, div';
+  let best = null;
+
+  $scope.find(rowSel).each((_, el) => {
+    const $el = $(el);
+    const text = $el.text();
+    if (!labelRe.test(text)) return;
+
+    // Prefer per-digit spans, fallback to a safe text scan
+    const d1 = pickConsecutiveSingleDigitNodes($, $el, n);
+    const d2 = d1 || pickNDigitsFromTextSafe($, $el, n);
+    if (d2) { best = { digits: d2, date: parseDateFromText(text) || parseDateFromText($scope.text()) }; return false; }
+  });
+
+  return best || { digits: null, date: null };
+}
+
 function parseDateFromText(text){
   const y = dayjs().year();
   const t = (text||'').replace(/\s+/g,' ');
@@ -176,18 +204,11 @@ async function tryUrls(urls, label, n, tag){
       const html = await fetchHtml(u);
       const $    = cheerio.load(html);
 
-      // If we're on CT day/night dedicated pages, don't rely on label text.
-      const isCtDay   = /connecticut\/day-play-(3|4)\//i.test(u);
-      const isCtNight = /connecticut\/night-play-(3|4)\//i.test(u);
-      if (isCtDay || isCtNight) {
-        const digits = extractFirstInLatest($, n);
-        const date   = parseDateFromText($.root().text());
-        if (digits) return { digits, date };
-        continue;
-      }
-
-      // Otherwise, do the normal label-scoped extraction
-      const {digits, date} = extractByLabel($, label, n);
+     // For Connecticut, always pick the row that matches the target label
+      // (works for both day/night dedicated pages and generic play-3/4 pages).
+      const isCT = /\/connecticut\//i.test(u);
+      const { digits, date } = isCT ? extractRowByLabel($, label, n)
+                                    : extractByLabel($, label, n);
       if (digits) return { digits, date };
     }catch(e){
       console.log(`[WARN] ${tag} ${u} -> ${e?.response?.status || e.message}`);
