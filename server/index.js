@@ -212,11 +212,22 @@ async function tryUrls(urls, label, n, tag){
       const html = await fetchHtml(u);
       const $    = cheerio.load(html);
 
-     // For Connecticut, always pick the row that matches the target label
-      // (works for both day/night dedicated pages and generic play-3/4 pages).
+      // CT handling:
+      //  - dedicated draw pages (midday-3/4, night-3/4): the page itself implies the draw,
+      //    so there may be NO visible 'Midday'/'Night' label near the digits.
+      //    Use a label-free extractor that grabs the first P3/P4 block.
+      //  - generic play pages (play-3/4): use the row-by-label extractor.
       const isCT = /\/connecticut\//i.test(u);
-      const { digits, date } = isCT ? extractRowByLabel($, label, n)
-                                    : extractByLabel($, label, n);
+      const isCtDedicated = /\/connecticut\/(midday|night)-[34]\//i.test(u);
+      let digits, date;
+      if (isCT && isCtDedicated) {
+        digits = extractFirstInLatest($, n);
+        date   = parseDateFromText($.root().text()) || dayjs();
+      } else if (isCT) {
+        ({ digits, date } = extractRowByLabel($, label, n));
+      } else {
+        ({ digits, date } = extractByLabel($, label, n));
+      }
       if (digits) return { digits, date };
     }catch(e){
       console.log(`[WARN] ${tag} ${u} -> ${e?.response?.status || e.message}`);
