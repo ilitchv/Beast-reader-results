@@ -218,7 +218,7 @@ async function tryUrls(urls, label, n, tag){
       //    Use a label-free extractor that grabs the first P3/P4 block.
       //  - generic play pages (play-3/4): use the row-by-label extractor.
       const isCT = /\/connecticut\//i.test(u);
-      const isCtDedicated = /\/connecticut\/(midday|night)-[34]\//i.test(u);
+      const isCtDedicated = /\/connecticut\/(midday|night)-[34]\//i.test(u) || (label === 'Night' && /\/connecticut\/play-[34]\//i.test(u)); // Night lives on play-3/4
       let digits, date;
       if (isCT && isCtDedicated) {
         digits = extractFirstInLatest($, n);
@@ -292,7 +292,6 @@ const U = {
       'https://www.lotteryusa.com/connecticut/play-3/'
     ], label: 'Midday' },
     eve: { urls: [
-      'https://www.lotteryusa.com/connecticut/night-3/',    // dedicated CT Night P3
       'https://www.lotteryusa.com/connecticut/play-3/'
     ], label: 'Night' }
   },
@@ -302,7 +301,6 @@ const U = {
       'https://www.lotteryusa.com/connecticut/play-4/'
     ], label: 'Midday' },
     eve: { urls: [
-      'https://www.lotteryusa.com/connecticut/night-4/',    // dedicated CT Night P4
       'https://www.lotteryusa.com/connecticut/play-4/'
     ], label: 'Night' }
   }
