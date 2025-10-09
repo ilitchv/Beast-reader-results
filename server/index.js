@@ -135,7 +135,7 @@ function pickConsecutiveSingleDigitNodes($,$container,n){
    // e.g., "6 4 1" (P3) or "0 2 7 0" (P4) when spans flatten oddly.
    const mSpan = txt.match(new RegExp(`(?:\\d\\D*){${n}}`));
    if (mSpan) {
-     const d = mSpan[0].replace(/\\D+/g,'').slice(0,n);
+     const d = mSpan[0].replace(/\D+/g,'').slice(0,n);
      if (d.length === n) return d;
    }
    const mTight = txt.match(new RegExp(`\\d{${n}}`));
@@ -327,8 +327,13 @@ async function combinedPair(stateKey){
     tryUrls(S.p4.eve.urls, S.p4.eve.label, 4, `${stateKey}.p4.eve`)
   ]);
 
-  const midday  = (mid3.digits && mid4.digits) ? `${mid3.digits}-${mid4.digits}` : null;
-  const evening = (eve3.digits && eve4.digits) ? `${eve3.digits}-${eve4.digits}` : null;
+ const ok = (s, n) => typeof s === 'string' && /^\d+$/.test(s) && s.length === n;
+ const m3 = ok(mid3.digits, 3) ? mid3.digits : null;
+ const m4 = ok(mid4.digits, 4) ? mid4.digits : null;
+ const e3 = ok(eve3.digits, 3) ? eve3.digits : null;
+ const e4 = ok(eve4.digits, 4) ? eve4.digits : null;
+ const midday  = (m3 && m4) ? `${m3}-${m4}` : null;
+ const evening = (e3 && e4) ? `${e3}-${e4}` : null;
 
   // prefer the freshest non-null date we observed near either label
   const dates = [mid3.date, mid4.date, eve3.date, eve4.date].filter(Boolean);
