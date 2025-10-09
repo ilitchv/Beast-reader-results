@@ -50,8 +50,10 @@ function extractFirstInLatest($, n) {
 
 // Accept "Day", "Daytime" for Day and just "Night" for night.
  const CT_LABEL_RE = {
-  Day: /(day(?:time)?)/i,   // match "Day" or "Daytime"
-  Night: /(night)/i
+  Day: /(day(?:time)?)/i,
+  Night: /(night)/i,
+  Midday: /(midday|day(?:time)?)/i,     // allow 'Midday' or 'Day/Daytime'
+  Evening: /(evening|night)/i           // allow 'Evening' or 'Night'
 };
  function extractRowByLabel($, label, n) {
    const labelRe = CT_LABEL_RE[label] || new RegExp(label, 'i');
@@ -272,12 +274,28 @@ const U = {
   },
 
   // CT and FL: keep as-is, but adding day/night-number fallbacks is fine too
-  ct: {
-   p3: { mid: { urls:[ 'https://www.lotteryusa.com/connecticut/play-3/' ], label:'Day' },
-         eve: { urls:[ 'https://www.lotteryusa.com/connecticut/play-3/' ], label:'Night' } },
-   p4: { mid: { urls:[ 'https://www.lotteryusa.com/connecticut/play-4/' ], label:'Day' },
-         eve: { urls:[ 'https://www.lotteryusa.com/connecticut/play-4/' ], label:'Night' } }
+ ct: {
+  p3: {
+    mid: { urls: [
+      'https://www.lotteryusa.com/connecticut/midday-3/',   // dedicated CT Midday P3
+      'https://www.lotteryusa.com/connecticut/play-3/'
+    ], label: 'Midday' },
+    eve: { urls: [
+      'https://www.lotteryusa.com/connecticut/night-3/',    // dedicated CT Night P3
+      'https://www.lotteryusa.com/connecticut/play-3/'
+    ], label: 'Night' }
   },
+  p4: {
+    mid: { urls: [
+      'https://www.lotteryusa.com/connecticut/midday-4/',   // dedicated CT Midday P4
+      'https://www.lotteryusa.com/connecticut/play-4/'
+    ], label: 'Midday' },
+    eve: { urls: [
+      'https://www.lotteryusa.com/connecticut/night-4/',    // dedicated CT Night P4
+      'https://www.lotteryusa.com/connecticut/play-4/'
+    ], label: 'Night' }
+  }
+},
 
   fl: {
     p3: { mid: { urls:[
