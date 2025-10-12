@@ -236,6 +236,22 @@ async function tryUrls(urls, label, n, tag){
   return {digits:null, date:null};
 }
 
+async function fetchGA(){
+  const r = await fetch(api('/api/ga/latest'), { cache: 'no-store' });
+  if(!r.ok) throw new Error('GA bridge failed '+r.status);
+  return await r.json(); // { dateISO, midday, evening }
+}
+async function syncGA(){
+  try{
+    const ga = await fetchGA();
+    if(ga.midday)  Store.setById('usa/ga/Midday',  ga.midday,  ga.dateISO);
+    if(ga.evening) Store.setById('usa/ga/Evening', ga.evening, ga.dateISO);
+    maybeAdvanceSelectedDate(ga.dateISO);
+    buildPublicBoard();
+    console.info('GA updated', ga);
+  }catch(e){ console.warn('GA sync failed', e); }
+}
+
 // ── URL map with robust fallbacks: specific page first, then generic page ─────
 const U = {
   ny: {
