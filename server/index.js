@@ -323,7 +323,29 @@ const U = {
                     'https://www.lotteryusa.com/florida/evening-pick-4/',
                     'https://www.lotteryusa.com/florida/pick-4/'
                   ], label:'Evening' } }
-  }
+  },
+ ga: {
+    p3: {
+      mid: { urls: [
+        'https://www.lotteryusa.com/georgia/midday-pick-3/',
+        'https://www.lotteryusa.com/georgia/pick-3/'
+      ], label: 'Midday' },
+      eve: { urls: [
+        'https://www.lotteryusa.com/georgia/evening-pick-3/',
+        'https://www.lotteryusa.com/georgia/pick-3/'
+      ], label: 'Evening' }
+    },
+    p4: {
+      mid: { urls: [
+        'https://www.lotteryusa.com/georgia/midday-pick-4/',
+        'https://www.lotteryusa.com/georgia/pick-4/'
+      ], label: 'Midday' },
+      eve: { urls: [
+        'https://www.lotteryusa.com/georgia/evening-pick-4/',
+        'https://www.lotteryusa.com/georgia/pick-4/'
+      ], label: 'Evening' }
+    }
+  },  
 };
 
 // ── build "p3-p4" per draw and a trustworthy dateISO ──────────────────────────
