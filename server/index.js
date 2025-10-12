@@ -229,27 +229,27 @@ async function tryUrls(urls, label, n, tag){
         ({ digits, date } = extractByLabel($, label, n));
       }
       if (digits) return { digits, date };
+      const isGA = /\/georgia\//i.test(u);
+// Dedicated GA pages: midday-3/4, cash-3/4-evening, cash-3/4 (night)
+const isGaDedicated = /\/georgia\/(midday-[34]|cash-[34](?:-evening)?\/?)$/i.test(u);
+let digits, date;
+
+if (isCT && isCtDedicated) {
+  digits = extractFirstInLatest($, n);
+  date   = parseDateFromText($.root().text()) || dayjs();
+} else if (isCT) {
+  ({ digits, date } = extractRowByLabel($, label, n));
+} else if (isGA && isGaDedicated) {
+  digits = extractFirstInLatest($, n);
+  date   = parseDateFromText($.root().text()) || dayjs();
+} else {
+  ({ digits, date } = extractByLabel($, label, n));
+}
     }catch(e){
       console.log(`[WARN] ${tag} ${u} -> ${e?.response?.status || e.message}`);
     }
   }
   return {digits:null, date:null};
-}
-
-async function fetchGA(){
-  const r = await fetch(api('/api/ga/latest'), { cache: 'no-store' });
-  if(!r.ok) throw new Error('GA bridge failed '+r.status);
-  return await r.json(); // { dateISO, midday, evening }
-}
-async function syncGA(){
-  try{
-    const ga = await fetchGA();
-    if(ga.midday)  Store.setById('usa/ga/Midday',  ga.midday,  ga.dateISO);
-    if(ga.evening) Store.setById('usa/ga/Evening', ga.evening, ga.dateISO);
-    maybeAdvanceSelectedDate(ga.dateISO);
-    buildPublicBoard();
-    console.info('GA updated', ga);
-  }catch(e){ console.warn('GA sync failed', e); }
 }
 
 // ── URL map with robust fallbacks: specific page first, then generic page ─────
@@ -341,56 +341,79 @@ const U = {
                   ], label:'Evening' } }
   },
  ga: {
-    p3: {
-      mid: { urls: [
-        'https://www.lotteryusa.com/georgia/midday-pick-3/',
-        'https://www.lotteryusa.com/georgia/pick-3/'
-      ], label: 'Midday' },
-      eve: { urls: [
-        'https://www.lotteryusa.com/georgia/evening-pick-3/',
-        'https://www.lotteryusa.com/georgia/pick-3/'
-      ], label: 'Evening' }
-    },
-    p4: {
-      mid: { urls: [
-        'https://www.lotteryusa.com/georgia/midday-pick-4/',
-        'https://www.lotteryusa.com/georgia/pick-4/'
-      ], label: 'Midday' },
-      eve: { urls: [
-        'https://www.lotteryusa.com/georgia/evening-pick-4/',
-        'https://www.lotteryusa.com/georgia/pick-4/'
-      ], label: 'Evening' }
-    }
-  },  
+  p3: {
+    mid: { urls: [
+      'https://www.lotteryusa.com/georgia/midday-3/',
+      'https://www.lotteryusa.com/georgia/'
+    ], label: 'Midday' },
+    eve: { urls: [
+      'https://www.lotteryusa.com/georgia/cash-3-evening/',
+      'https://www.lotteryusa.com/georgia/'
+    ], label: 'Evening' },
+    ngt: { urls: [
+      'https://www.lotteryusa.com/georgia/cash-3/',
+      'https://www.lotteryusa.com/georgia/'
+    ], label: 'Night' }
+  },
+  p4: {
+    mid: { urls: [
+      'https://www.lotteryusa.com/georgia/midday-4/',
+      'https://www.lotteryusa.com/georgia/'
+    ], label: 'Midday' },
+    eve: { urls: [
+      'https://www.lotteryusa.com/georgia/cash-4-evening/',
+      'https://www.lotteryusa.com/georgia/'
+    ], label: 'Evening' },
+    ngt: { urls: [
+      'https://www.lotteryusa.com/georgia/cash-4/',
+      'https://www.lotteryusa.com/georgia/'
+    ], label: 'Night' }
+  }
+ },
 };
 
 // ── build "p3-p4" per draw and a trustworthy dateISO ──────────────────────────
 async function combinedPair(stateKey){
-  const S=U[stateKey];
-  const [mid3, eve3, mid4, eve4] = await Promise.all([
+  const S = U[stateKey];
+
+  const jobs = [
     tryUrls(S.p3.mid.urls, S.p3.mid.label, 3, `${stateKey}.p3.mid`),
     tryUrls(S.p3.eve.urls, S.p3.eve.label, 3, `${stateKey}.p3.eve`),
     tryUrls(S.p4.mid.urls, S.p4.mid.label, 4, `${stateKey}.p4.mid`),
     tryUrls(S.p4.eve.urls, S.p4.eve.label, 4, `${stateKey}.p4.eve`)
-  ]);
+  ];
 
- const ok = (s, n) => typeof s === 'string' && /^\d+$/.test(s) && s.length === n;
- const m3 = ok(mid3.digits, 3) ? mid3.digits : null;
- const m4 = ok(mid4.digits, 4) ? mid4.digits : null;
- const e3 = ok(eve3.digits, 3) ? eve3.digits : null;
- const e4 = ok(eve4.digits, 4) ? eve4.digits : null;
- const midday  = (m3 && m4) ? `${m3}-${m4}` : null;
- const evening = (e3 && e4) ? `${e3}-${e4}` : null;
+  // Optional Night
+  let hasNight = S.p3.ngt && S.p4.ngt;
+  if (hasNight) {
+    jobs.push(
+      tryUrls(S.p3.ngt.urls, S.p3.ngt.label, 3, `${stateKey}.p3.ngt`),
+      tryUrls(S.p4.ngt.urls, S.p4.ngt.label, 4, `${stateKey}.p4.ngt`)
+    );
+  }
 
-  // prefer the freshest non-null date we observed near either label
-  const dates = [mid3.date, mid4.date, eve3.date, eve4.date].filter(Boolean);
+  const results = await Promise.all(jobs);
+
+  const ok = (s, n) => typeof s === 'string' && /^\d+$/.test(s) && s.length === n;
+
+  const [mid3, eve3, mid4, eve4, n3, n4] =
+    hasNight ? results : [...results, {digits:null,date:null}, {digits:null,date:null}];
+
+  const m3 = ok(mid3.digits, 3) ? mid3.digits : null;
+  const m4 = ok(mid4.digits, 4) ? mid4.digits : null;
+  const e3 = ok(eve3.digits, 3) ? eve3.digits : null;
+  const e4 = ok(eve4.digits, 4) ? eve4.digits : null;
+  const nn3 = ok(n3.digits, 3) ? n3.digits : null;
+  const nn4 = ok(n4.digits, 4) ? n4.digits : null;
+
+  const midday  = (m3  && m4)  ? `${m3}-${m4}`   : null;
+  const evening = (e3  && e4)  ? `${e3}-${e4}`   : null;
+  const night   = (nn3 && nn4) ? `${nn3}-${nn4}` : null;
+
+  const dates = [mid3.date, mid4.date, eve3.date, eve4.date, n3?.date, n4?.date].filter(Boolean);
   const latest = dates.length ? dates.sort((a,b)=>a.valueOf()-b.valueOf()).pop() : null;
 
-  return {
-    dateISO: (latest || dayjs()).format('YYYY-MM-DD'),
-    midday,
-    evening
-  };
+  return { dateISO: (latest || dayjs()).format('YYYY-MM-DD'), midday, evening, night };
 }
 
 // API
@@ -402,7 +425,7 @@ app.get('/api/:state/latest', async (req,res)=>{
     res.status(200).json(data);
   }catch(e){
     console.log('[ERROR]', key, e?.response?.status || e.message);
-    res.status(200).json({ dateISO: dayjs().format('YYYY-MM-DD'), midday:null, evening:null });
+    res.status(200).json({ dateISO: dayjs().format('YYYY-MM-DD'), midday:null, evening:null, night:null });
   }
 });
 
