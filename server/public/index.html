@@ -515,11 +515,26 @@ async function syncFL(){
     console.info('FL updated', fl);
   }catch(e){ console.warn('FL sync failed', e); }
 }
+async function fetchGA(){
+  const r = await fetch(api('/api/ga/latest'), { cache: 'no-store' });
+  if(!r.ok) throw new Error('GA bridge failed '+r.status);
+  return await r.json(); // { dateISO, midday, evening }
+}
+async function syncGA(){
+  try{
+    const ga = await fetchGA();
+    if(ga.midday)  Store.setById('usa/ga/Midday',  ga.midday,  ga.dateISO);
+    if(ga.evening) Store.setById('usa/ga/Evening', ga.evening, ga.dateISO);
+    maybeAdvanceSelectedDate(ga.dateISO);
+    buildPublicBoard();
+    console.info('GA updated', ga);
+  }catch(e){ console.warn('GA sync failed', e); }
+}    
 
 
     // Later: add sync functions for NJ/CT/FL... and call them inside syncAll()
   async function syncAll(){
-  const tasks = [syncNY(), syncNJ(), syncCT(), syncFL()];
+  const tasks = [syncNY(), syncNJ(), syncCT(), syncFL(), syncGA()];
   await Promise.allSettled(tasks);
   // Repaint once after all writes land
   buildPublicBoard();
