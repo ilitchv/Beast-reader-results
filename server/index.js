@@ -212,39 +212,35 @@ async function tryUrls(urls, label, n, tag){
       const html = await fetchHtml(u);
       const $    = cheerio.load(html);
 
-      // CT handling:
-      //  - dedicated draw pages (midday-3/4, night-3/4): the page itself implies the draw,
-      //    so there may be NO visible 'Midday'/'Night' label near the digits.
-      //    Use a label-free extractor that grabs the first P3/P4 block.
-      //  - generic play pages (play-3/4): use the row-by-label extractor.
       const isCT = /\/connecticut\//i.test(u);
-      const isCtDedicated = /\/connecticut\/(midday|night)-[34]\//i.test(u) || (label === 'Night' && /\/connecticut\/play-[34]\//i.test(u)); // Night lives on play-3/4
-      let digits, date;
+      const isCtDedicated =
+        /\/connecticut\/(midday|night)-[34]\//i.test(u) ||
+        (label === 'Night' && /\/connecticut\/play-[34]\//i.test(u)); // Night lives on play-3/4
+
+      const isGA = /\/georgia\//i.test(u);
+      // Dedicated GA pages: midday-3/4, cash-3/4-evening, cash-3/4 (night)
+      const isGaDedicated = /\/georgia\/(midday-[34]|cash-[34](?:-evening)?\/?)$/i.test(u);
+
+      let digits = null, date = null;
+
       if (isCT && isCtDedicated) {
+        // CT dedicated draw pages – numbers appear without an adjacent draw label
         digits = extractFirstInLatest($, n);
         date   = parseDateFromText($.root().text()) || dayjs();
       } else if (isCT) {
+        // CT generic pages – use label-aware row extraction
         ({ digits, date } = extractRowByLabel($, label, n));
+      } else if (isGA && isGaDedicated) {
+        // GA dedicated pages (midday-3/4, cash-3/4-evening, cash-3/4)
+        digits = extractFirstInLatest($, n);
+        date   = parseDateFromText($.root().text()) || dayjs();
       } else {
+        // Generic case: look for a row near the label inside "Latest numbers"
         ({ digits, date } = extractByLabel($, label, n));
       }
-      if (digits) return { digits, date };
-      const isGA = /\/georgia\//i.test(u);
-// Dedicated GA pages: midday-3/4, cash-3/4-evening, cash-3/4 (night)
-const isGaDedicated = /\/georgia\/(midday-[34]|cash-[34](?:-evening)?\/?)$/i.test(u);
-let digits, date;
 
-if (isCT && isCtDedicated) {
-  digits = extractFirstInLatest($, n);
-  date   = parseDateFromText($.root().text()) || dayjs();
-} else if (isCT) {
-  ({ digits, date } = extractRowByLabel($, label, n));
-} else if (isGA && isGaDedicated) {
-  digits = extractFirstInLatest($, n);
-  date   = parseDateFromText($.root().text()) || dayjs();
-} else {
-  ({ digits, date } = extractByLabel($, label, n));
-}
+      if (digits) return { digits, date };
+
     }catch(e){
       console.log(`[WARN] ${tag} ${u} -> ${e?.response?.status || e.message}`);
     }
