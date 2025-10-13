@@ -221,6 +221,10 @@ async function tryUrls(urls, label, n, tag){
       // Dedicated GA pages: midday-3/4, cash-3/4-evening, cash-3/4 (night)
       const isGaDedicated = /\/georgia\/(midday-[34]|cash-[34](?:-evening)?\/?)$/i.test(u);
 
+      const isPA = /\/pennsylvania\//i.test(u);
+      // Dedicated PA pages: midday-pick-3/4 and pick-3/4
+      const isPaDedicated = /\/pennsylvania\/(midday-pick-[34]|pick-[34]\/?)$/i.test(u);
+
       let digits = null, date = null;
 
       if (isCT && isCtDedicated) {
@@ -366,6 +370,29 @@ const U = {
     ], label: 'Night' }
   }
  },
+pa: {
+  p3: {
+    mid: { urls: [
+      'https://www.lotteryusa.com/pennsylvania/midday-pick-3/',
+      'https://www.lotteryusa.com/pennsylvania/'
+    ], label: 'Day' },        // PA calls this “Day”
+    eve: { urls: [
+      'https://www.lotteryusa.com/pennsylvania/pick-3/',
+      'https://www.lotteryusa.com/pennsylvania/'
+    ], label: 'Evening' }
+  },
+  p4: {
+    mid: { urls: [
+      'https://www.lotteryusa.com/pennsylvania/midday-pick-4/',
+      'https://www.lotteryusa.com/pennsylvania/'
+    ], label: 'Day' },
+    eve: { urls: [
+      'https://www.lotteryusa.com/pennsylvania/pick-4/',
+      'https://www.lotteryusa.com/pennsylvania/'
+    ], label: 'Evening' }
+  }
+},
+  
 };
 
 // ── build "p3-p4" per draw and a trustworthy dateISO ──────────────────────────
