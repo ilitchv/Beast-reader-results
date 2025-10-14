@@ -80,6 +80,8 @@
     textarea { width:100%; min-height:160px; resize:vertical; background:var(--card-3); border:1px solid rgba(255,255,255,.1); color:var(--text); border-radius:12px; padding:10px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
     .hidden { display:none; }
     .right { margin-left:auto; }
+    /* date line under the numbers */
+    .date-line { font-size:12px; color: var(--muted); margin-top:2px; }
   </style>
 </head>
 <body data-theme="dark">
@@ -165,6 +167,8 @@
         </div>
         <div id="catalogTableContainer"></div>
       </section>
+
+      
 
       <!-- LOGOS TAB (placeholder) -->
       <section id="tab-logos" class="hidden">
@@ -255,6 +259,19 @@
       writeJSON(LS.VIS, vis);
       return vis;
     }
+    function getTileISODate(id){
+  // We already write legacy results as: legacy[section][state][draw] = { value, ts }
+  const legacy = readJSON(LS.LEGACY_RESULTS, {});
+  const [section, state, draw] = id.split('/');
+  const ts = legacy?.[section]?.[state]?.[draw]?.ts || null;  // e.g. "2025-10-13" or full ISO
+  return ts ? ts.slice(0,10) : null;
+}
+function formatDateHuman(iso){
+  // Avoid TZ off-by-one by anchoring noon UTC
+  const d = iso ? new Date(iso + 'T12:00:00Z') : new Date();
+  // Use the browser locale; change to 'en-US' if you want to force English.
+  return d.toLocaleDateString(undefined, { weekday:'long', month:'short', day:'numeric', year:'numeric' });
+}
     // Keep the selected date on 'today' unless the Admin drawer is open
 function maybeAdvanceSelectedDate(iso){
   const synced = (iso || new Date().toISOString()).slice(0,10);
@@ -336,22 +353,26 @@ function maybeAdvanceSelectedDate(iso){
         if(!vis[item.id]) continue;
         const where = item.section === 'usa' ? '#grid-usa' : (item.section === 'rd' ? '#grid-rd' : '#grid-special');
         const res = results[item.id] || '';
-        const el = document.createElement('div');
-        el.className = 'card';
-        el.innerHTML = `
-          <div class="card-header">
-            <div class="badge">${(item.lottery[0]||'?')+(item.lottery.split(' ')[1]?.[0]||'')}</div>
-            <div><div class="title">${item.lottery}</div><div class="subtitle">${item.draw}</div></div>
-            <div class="right status">ET</div>
-          </div>
-          <div class="card-body">
-            <div class="result-big" data-res-for="${item.id}">${res?res:'—'}</div>
-            <div class="meta"><span>Sorteo: ${item.drawTime}</span><span>Cierre: ${item.closeTime}</span></div>
-          </div>
-          <div class="card-footer">
-            <span class="chip">ID: ${item.id}</span>
-            <span class="link" data-hist="${item.id}">Ver historial</span>
-          </div>`;
+const iso = getTileISODate(item.id);               // "YYYY-MM-DD" (from Store.setById)
+const prettyDate = iso ? formatDateHuman(iso) : ''; // "Monday, Oct 13, 2025"
+
+const el = document.createElement('div');
+el.className = 'card';
+el.innerHTML = `
+  <div class="card-header">
+    <div class="badge">${(item.lottery[0]||'?')+(item.lottery.split(' ')[1]?.[0]||'')}</div>
+    <div><div class="title">${item.lottery}</div><div class="subtitle">${item.draw}</div></div>
+    <div class="right status">ET</div>
+  </div>
+  <div class="card-body">
+    <div class="result-big" data-res-for="${item.id}">${res?res:'—'}</div>
+    <div class="date-line">${prettyDate || '&nbsp;'}</div>
+    <div class="meta"><span>Sorteo: ${item.drawTime}</span><span>Cierre: ${item.closeTime}</span></div>
+  </div>
+  <div class="card-footer">
+    <span class="chip">ID: ${item.id}</span>
+    <span class="link" data-hist="${item.id}">Ver historial</span>
+  </div>`;
         $(where).appendChild(el);
         $('[data-hist]', el).onclick = () => openHistory(item.id);
       }
