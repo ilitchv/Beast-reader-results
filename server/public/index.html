@@ -209,7 +209,13 @@
 
     const $ = (sel, p=document) => p.querySelector(sel);
     const $$ = (sel, p=document) => Array.from(p.querySelectorAll(sel));
-    const todayStr = () => new Date().toISOString().slice(0,10);
+    const todayStr = () => {
+    const d = new Date();                // local time
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;           // YYYY-MM-DD (local)
+    };
 
     function readJSON(key, fallback) { try { const t = localStorage.getItem(key); return t ? JSON.parse(t) : fallback; } catch(e) { console.error('readJSON', key, e); return fallback; } }
     function writeJSON(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
@@ -310,30 +316,37 @@ function maybeAdvanceSelectedDate(iso){
 
       // Write to both schemas
       setById(id, value, iso){
-        const date = (iso||new Date().toISOString()).slice(0,10);
-        // new
-        const obj = readJSON(resultsKey(date), {});
-        obj[id] = value;
-        writeJSON(resultsKey(date), obj);
-        // legacy
-        const [section, state, draw] = id.split('/');
-        if(section && state && draw){
-          const legacy = readJSON(LS.LEGACY_RESULTS, {});
-          legacy[section] = legacy[section] || {};
-          legacy[section][state] = legacy[section][state] || {};
-          legacy[section][state][draw] = { value, ts: iso || new Date().toISOString() };
-          writeJSON(LS.LEGACY_RESULTS, legacy);
-          // Append to legacy history
-          const HK = 'br_history_v1';
-          const hist = readJSON(HK, {});
-          const key = `${section}/${state}/${draw}`;
-          hist[key] = hist[key] || [];
-          const last = hist[key][hist[key].length-1];
-          if(!last || last.value !== value){ hist[key].push({ value, ts: iso||new Date().toISOString() }); if(hist[key].length>100) hist[key].shift(); }
-          writeJSON(HK, hist);
-        }
-      }
-    };
+  // Prefer the API's dateISO; otherwise fall back to LOCAL today
+  const date = (iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? iso.slice(0,10) : todayStr());
+
+  // new-schema per-day bucket
+  const obj = readJSON(resultsKey(date), {});
+  obj[id] = value;
+  writeJSON(resultsKey(date), obj);
+
+  // legacy schema: store a plain YYYY-MM-DD (not UTC datetime)
+  const [section, state, draw] = id.split('/');
+  if(section && state && draw){
+    const legacy = readJSON(LS.LEGACY_RESULTS, {});
+    legacy[section] = legacy[section] || {};
+    legacy[section][state] = legacy[section][state] || {};
+    legacy[section][state][draw] = { value, ts: date };
+
+    writeJSON(LS.LEGACY_RESULTS, legacy);
+
+    // history: also store date-only so the date line stays stable per tile
+    const HK = LS.LEGACY_HISTORY;
+    const hist = readJSON(HK, {});
+    const key = `${section}/${state}/${draw}`;
+    hist[key] = hist[key] || [];
+    const last = hist[key][hist[key].length-1];
+    if(!last || last.value !== value){
+      hist[key].push({ value, ts: date });
+      if(hist[key].length>100) hist[key].shift();
+    }
+    writeJSON(HK, hist);
+  }
+}
 
     /**********************************************************
      * Public board render (alternate UI)
