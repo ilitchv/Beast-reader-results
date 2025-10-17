@@ -3,6 +3,12 @@ import cors from 'cors';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc.js';
+import timezone from 'dayjs/plugin/timezone.js';
+dayjs.extend(utc);
+dayjs.extend(timezone);
+// Make all "current time" fallbacks Eastern Time, not UTC
+dayjs.tz.setDefault('America/New_York');
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -27,6 +33,7 @@ async function fetchHtml(url){
   const {data} = await axios.get(url, { ...HTTP, params: { t: Date.now() }});
   return data;
 }
+
 
 // ── helpers to parse date strings we see on pages ──────────────────────────────
 // Extract "the first n-digit result" from the main results area (no label needed)
@@ -78,12 +85,12 @@ function extractFirstInLatest($, n) {
    return d2 ? { digits: d2, date } : { digits: null, date: null };
  }
 function parseDateFromText(text){
-  const y = dayjs().year();
+  const y = ().year();
   const t = (text||'').replace(/\s+/g,' ');
 
   // Fast-path: "today" / "tonight" → use current date
   if (/\b(today|tonight|this (?:evening|afternoon|morning))\b/i.test(t)) {
-    return dayjs();
+    return dayjs.tz(Date.now(), 'America/New_York'); // for "today/tonight"
   }
 
   // Month-name format: "September 10, 2025" or "Sep 10"
@@ -93,7 +100,7 @@ function parseDateFromText(text){
     const M = monthNames.findIndex(x => m1[1].toLowerCase().startsWith(x))+1;
     const D = parseInt(m1[2],10);
     const Y = m1[3]? parseInt(m1[3],10): y;
-    return dayjs(`${Y}-${String(M).padStart(2,'0')}-${String(D).padStart(2,'0')}`);
+    return dayjs.tz(`${Y}-${String(M).padStart(2,'0')}-${String(D).padStart(2,'0')}`, 'America/New_York');
   }
 
   // Numeric format: 9/10/2025 or 9/10
@@ -102,7 +109,7 @@ function parseDateFromText(text){
     const M = parseInt(m2[1],10), D = parseInt(m2[2],10);
     let Y = m2[3]? parseInt(m2[3],10): y;
     if (Y<100) Y = 2000+Y;
-    return dayjs(`${Y}-${String(M).padStart(2,'0')}-${String(D).padStart(2,'0')}`);
+    return dayjs.tz(`${Y}-${String(M).padStart(2,'0')}-${String(D).padStart(2,'0')}`, 'America/New_York');
   }
   return null; // let caller default to "today" instead of scanning the whole section
 }
@@ -230,14 +237,14 @@ async function tryUrls(urls, label, n, tag){
       if (isCT && isCtDedicated) {
         // CT dedicated draw pages – numbers appear without an adjacent draw label
         digits = extractFirstInLatest($, n);
-        date   = parseDateFromText($.root().text()) || dayjs();
+        date = parseDateFromText($.root().text()) || dayjs.tz(Date.now(), 'America/New_York');
       } else if (isCT) {
         // CT generic pages – use label-aware row extraction
         ({ digits, date } = extractRowByLabel($, label, n));
       } else if (isGA && isGaDedicated) {
         // GA dedicated pages (midday-3/4, cash-3/4-evening, cash-3/4)
         digits = extractFirstInLatest($, n);
-        date   = parseDateFromText($.root().text()) || dayjs();
+        date = parseDateFromText($.root().text()) || dayjs.tz(Date.now(), 'America/New_York');
       } else {
         // Generic case: look for a row near the label inside "Latest numbers"
         ({ digits, date } = extractByLabel($, label, n));
@@ -436,7 +443,10 @@ async function combinedPair(stateKey){
   const dates = [mid3.date, mid4.date, eve3.date, eve4.date, n3?.date, n4?.date].filter(Boolean);
   const latest = dates.length ? dates.sort((a,b)=>a.valueOf()-b.valueOf()).pop() : null;
 
-  return { dateISO: (latest || dayjs()).format('YYYY-MM-DD'), midday, evening, night };
+  return {
+  dateISO: (latest ? latest.tz('America/New_York') : dayjs.tz(Date.now(), 'America/New_York')).format('YYYY-MM-DD'),
+  midday, evening, night
+};
 }
 
 // API
@@ -448,7 +458,10 @@ app.get('/api/:state/latest', async (req,res)=>{
     res.status(200).json(data);
   }catch(e){
     console.log('[ERROR]', key, e?.response?.status || e.message);
-    res.status(200).json({ dateISO: dayjs().format('YYYY-MM-DD'), midday:null, evening:null, night:null });
+    res.status(200).json({
+  dateISO: dayjs.tz(Date.now(), 'America/New_York').format('YYYY-MM-DD'),
+  midday:null, evening:null, night:null
+});
   }
 });
 
