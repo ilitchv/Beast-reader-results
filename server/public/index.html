@@ -280,8 +280,8 @@ function formatDateHuman(iso){
 }
     // Keep the selected date on 'today' unless the Admin drawer is open
 function maybeAdvanceSelectedDate(iso){
-  const synced = (iso || new Date().toISOString()).slice(0,10);
-  const current = (JSON.parse(localStorage.getItem('br_selected_date') || 'null')) || new Date().toISOString().slice(0,10);
+  const synced  = (iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? iso.slice(0,10) : todayStr());
+  const current = (JSON.parse(localStorage.getItem('br_selected_date') || 'null')) || todayStr();
   const drawerOpen = document.getElementById('drawer').classList.contains('open');
   // only move forward; never regress the selected date
   if (!drawerOpen && synced > current) {
@@ -471,7 +471,7 @@ el.innerHTML = `
       { pat:/\b(eve|evening|pm)\b/i, target:'usa/ny/Evening' }
       // (extend with your full map)
     ];
-    function extractResultNumbers(str){ const s=str.replace(/[^\dx\- ]+/gi,' ').trim(); const m1=s.match(/(\d{3})\D+(\d{4})/); if(m1) return `${m1[1]}-${m1[2]}`; const m2=s.match(/(\d{2})\D+(\d{2})\D+(\d{2})/); if(m2) return `${m2[1]}-${m2[2]}-${m2[3]}`; const m3=s.match(/\b(\d{3,4})\b/); if(m3) return m3[1]; const d=s.replace(/\D+/g,''); return d||''; }
+    function extractResultNumbers(str){ const s = str.replace(/[^0-9x\- ]+/gi, ' ').trim(); const m1=s.match(/(\d{3})\D+(\d{4})/); if(m1) return `${m1[1]}-${m1[2]}`; const m2=s.match(/(\d{2})\D+(\d{2})\D+(\d{2})/); if(m2) return `${m2[1]}-${m2[2]}-${m2[3]}`; const m3=s.match(/\b(\d{3,4})\b/); if(m3) return m3[1]; const d=s.replace(/\D+/g,''); return d||''; }
     function previewTextToTable(text){ const lines=text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean); return lines.map(line=>{ let targetId=''; for(const r of OCR_MAP){ if(r.pat.test(line)){ targetId=r.target; break; } } return { source:line, targetId, value:extractResultNumbers(line) }; }); }
     function buildOcrPreviewTable(){ const date=Store.dateStr(); const snap=readJSON(ocrKey(date), []); let html=`<table class="table"><thead><tr><th>Abbrev.</th><th>Map</th><th>Detected</th><th>Value</th><th>Actions</th></tr></thead><tbody>`; html+=snap.map((r,i)=>`<tr data-i="${i}"><td>${r.source}</td><td>${r.targetId||'—'}</td><td>${extractResultNumbers(r.source)}</td><td><input type="text" value="${r.value||''}" data-val /></td><td><button class="btn saveRow">Save</button></td></tr>`).join(''); html+='</tbody></table>'; $('#ocrPreviewContainer').innerHTML=html; $$('.saveRow', $('#ocrPreviewContainer')).forEach(btn=>{ btn.onclick=(e)=>{ const tr=e.target.closest('tr'); const i=Number(tr.dataset.i); const rows=readJSON(ocrKey(Store.dateStr()), []); const row=rows[i]; if(!row?.targetId){ alert('Falta Map/ID'); return; } const v=$('[data-val]', tr).value.trim(); Store.setById(row.targetId, v, new Date().toISOString()); buildPublicBoard(); buildResultsTable(); }; }); }
 
