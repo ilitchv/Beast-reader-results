@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Beast Reader — Ultimate</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Tesseract for OCR (kept) -->
+  <script>
+  const API_BASE=(location.hostname==='localhost'||location.hostname==='127.0.0.1')?'http://localhost:3000':'';
+  const api=(p)=>`${API_BASE}${p}`;
+</script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #0b2a24; --bg-2: #0e332c; --bg-3: #0c2723;
+      --card: #123a32; --card-2: #0f332c; --card-3: #0e2d27;
+      --text: #e9f7f4; --muted: #9ed7cb; --accent: #51ffc6; --accent-2: #99ffea;
+      --danger: #ff6b6b; --ok: #2ee59d; --shadow: 0 8px 22px rgba(0,0,0,.35); --radius: 16px;
+    }
+    [data-theme="light"] {
+      --bg:#efe7da; --bg-2:#e7dece; --bg-3:#dfd3c0;
+      --card:#f6efe4; --card-2:#f0e7d9; --card-3:#eadfcd;
+      --text:#2a2a2a; --muted:#4b5a55; --accent:#1fbf8a; --accent-2:#0aa39b;
+      --danger:#b33a3a; --ok:#157a57; --shadow:0 6px 16px rgba(0,0,0,.18); --radius:16px;
+    }
+
+    html, body { height: 100%; }
+    body { margin: 0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: var(--text);
+           background: radial-gradient(1200px 1200px at 15% 10%, var(--bg-2) 0%, var(--bg) 50%, var(--bg-3) 100%) fixed; }
+
+    /* Header */
+    .topbar { display:flex; align-items:center; justify-content:space-between; padding:18px 24px; position:sticky; top:0; z-index:30; background:linear-gradient(0deg, transparent, rgba(0,0,0,.12)); backdrop-filter:blur(4px); }
+    .brand { display:grid; grid-auto-flow:column; gap:14px; align-items:center; font-weight:800; letter-spacing:.4px; font-size:26px; }
+    .logo { width:42px; height:42px; border-radius:12px; display:grid; place-items:center; background: radial-gradient(90px 90px at 20% 20%, #00ffd5 0%, #2af4a6 40%, #0aa39b 100%); color:#0b2a24; font-weight:900; box-shadow:var(--shadow); }
+    .brand small { font-weight:500; font-size:12px; color:var(--muted); }
+    .actions { display:grid; grid-auto-flow:column; gap:10px; }
+    .btn { border:none; outline:none; cursor:pointer; background:linear-gradient(135deg, var(--card-2), var(--card)); color:var(--text); padding:10px 16px; border-radius:999px; font-weight:600; box-shadow:var(--shadow); display:inline-flex; align-items:center; gap:10px; }
+    .btn:hover { filter: brightness(1.06); }
+    .btn.ghost { background: var(--card-2); }
+    .btn.danger { background: linear-gradient(135deg, #b54545, #782d2d); }
+    .chip { padding:4px 10px; border-radius:999px; font-size:12px; background:var(--card-3); color:var(--muted); }
+
+    .wrap { padding:18px 24px 64px; max-width:1480px; margin:0 auto; }
+    .section-title { font-size:22px; font-weight:800; margin:18px 0 8px; letter-spacing:.3px; }
+    .grid { display:grid; gap:14px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+
+    .card { border-radius:var(--radius); background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01)); box-shadow:var(--shadow); overflow:hidden; border:1px solid rgba(255,255,255,.06); min-height:160px; display:grid; grid-template-rows:auto 1fr auto; }
+    .card-header { display:flex; align-items:center; gap:10px; padding:12px 14px; background:linear-gradient(180deg, var(--card-2), var(--card-3)); border-bottom:1px solid rgba(255,255,255,.07); }
+    .badge { width:34px; height:34px; border-radius:10px; flex:0 0 auto; display:grid; place-items:center; background: radial-gradient(70px 70px at 10% 10%, var(--accent-2) 0%, var(--accent) 65%, #1f9d76 100%); color:#09231e; font-weight:900; border:1px solid rgba(0,0,0,.15); }
+    .title { font-weight:800; font-size:14px; }
+    .subtitle { font-weight:600; font-size:12px; opacity:.8; }
+    .card-body { padding:12px 14px; display:grid; gap:8px; }
+    .result-big { font-size:28px; letter-spacing:2px; font-weight:800; display:inline-block; }
+    .meta { font-size:12px; display:flex; gap:12px; color:var(--muted); }
+    .status { font-size:11px; opacity:.9; }
+    .card-footer { padding:10px 14px; border-top:1px solid rgba(255,255,255,.07); display:flex; align-items:center; justify-content:space-between; background:var(--card-2); }
+    .link { color: var(--accent-2); text-decoration: underline; cursor: pointer; }
+
+    /* Admin Drawer */
+    .drawer { position:fixed; inset:0; display:none; z-index:70; background:rgba(0,0,0,.45); }
+    .drawer.open { display:block; }
+    .panel { position:absolute; inset:0 0 0 auto; width:min(1200px,100%); max-width:96%; background:var(--bg-2); color:var(--text); overflow:auto; box-shadow:var(--shadow); padding:18px 22px 40px; }
+    .panel h2 { margin:0 0 8px; }
+    .tabs { display:grid; grid-auto-flow:column; gap:8px; width:max-content; margin-bottom:14px; }
+    .tab { background:var(--card-2); padding:8px 12px; border-radius:999px; cursor:pointer; }
+    .tab.active { background:var(--accent); color:#0b2a24; font-weight:800; }
+    .table { width:100%; border-collapse:collapse; }
+    .table th, .table td { padding:10px 8px; border-bottom:1px solid rgba(255,255,255,.08); font-size:14px; }
+    .table th { text-align:left; color:var(--muted); }
+    .controls { display:grid; grid-auto-flow:column; gap:8px; width:max-content; margin-bottom:12px; }
+
+    input[type="text"], input[type="time"], input[type="date"] { background:var(--card-3); border:1px solid rgba(255,255,255,.08); color:var(--text); border-radius:10px; padding:8px 10px; outline:none; }
+    textarea { width:100%; min-height:160px; resize:vertical; background:var(--card-3); border:1px solid rgba(255,255,255,.1); color:var(--text); border-radius:12px; padding:10px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .hidden { display:none; }
+    .right { margin-left:auto; }
+    /* date line under the numbers */
+    .date-line { font-size:12px; color: var(--muted); margin-top:2px; }
+  </style>
+</head>
+<body data-theme="dark">
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">BR</div>
+      <div>
+        Beast Reader
+        <div><small>Live results — USA, RD & Special</small></div>
+      </div>
+    </div>
+    <div class="actions header-actions">
+      <button class="btn ghost" id="autoScrollHeader">⬇ Auto Scroll</button>
+      <button class="btn ghost" id="syncNowBtn">⟳ Sync</button>
+      <button class="btn" id="adminBtn">Admin</button>
+    </div>
+  </header>
+
+  <main class="wrap" id="publicBoard">
+    <div class="section-title">USA Lotteries</div>
+    <div class="grid" id="grid-usa"></div>
+
+    <div class="section-title">Santo Domingo Lotteries</div>
+    <div class="grid" id="grid-rd"></div>
+
+    <div class="section-title">Special Lotteries</div>
+    <div class="grid" id="grid-special"></div>
+  </main>
+
+  <!-- Admin Drawer -->
+  <div class="drawer" id="drawer">
+    <div class="panel">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+        <h2 style="margin:0;">Beast Reader — Admin</h2>
+        <span class="chip">Idioma</span>
+        <input type="checkbox" id="langToggle" class="mr8" />
+        <span class="chip">Tema</span>
+        <input type="checkbox" id="themeToggle" class="mr8" />
+        <span class="chip">Fecha para resultados</span>
+        <input type="date" id="datePicker" />
+        <input type="text" id="searchInput" class="right" placeholder="Buscar..." style="max-width: 260px;" />
+        <button class="btn ghost" id="closeDrawer">Cerrar</button>
+      </div>
+
+      <div class="tabs">
+        <div class="tab active" data-tab="results">Resultados</div>
+        <div class="tab" data-tab="ocr">OCR</div>
+        <div class="tab" data-tab="catalog">Catálogo</div>
+        <div class="tab" data-tab="logos">Logos</div>
+        <div class="tab" data-tab="visibility">Visibilidad</div>
+      </div>
+
+      <!-- RESULTS TAB -->
+      <section id="tab-results">
+        <p class="mb10">Editar/guardar resultados manualmente.</p>
+        <div class="controls">
+          <button class="btn danger" id="resetResultsBtn">Reset results</button>
+          <button class="btn" id="refreshFromOCRBtn">Refresh from OCR</button>
+        </div>
+        <div id="resultsTableContainer"></div>
+      </section>
+
+      <!-- OCR TAB -->
+      <section id="tab-ocr" class="hidden">
+        <p class="mb10">Arrastra imágenes o pega texto. Previsualiza y guarda la tabla detectada.</p>
+        <div class="controls">
+          <input type="file" id="ocrFile" accept="image/*" multiple />
+          <button class="btn" id="runOcrBtn">Ejecutar OCR</button>
+          <button class="btn" id="previewFromTextBtn">Previsualizar texto</button>
+          <button class="btn" id="clearOcrPreview">Limpiar preview</button>
+        </div>
+        <textarea id="ocrText" placeholder="Pega aquí el texto (ej.: 'Midday — 992 - 0845 ...')"></textarea>
+        <div class="mb10"></div>
+        <div id="ocrPreviewContainer"></div>
+      </section>
+
+      <!-- CATALOG TAB -->
+      <section id="tab-catalog" class="hidden">
+        <div class="controls">
+          <button class="btn" id="addLotteryBtn">Añadir lotería</button>
+          <button class="btn" id="addDrawToSelectionBtn">Añadir draw a selección</button>
+          <button class="btn" id="saveCatalogBtn">Guardar catálogo</button>
+        </div>
+        <div id="catalogTableContainer"></div>
+      </section>
+
+      
+
+      <!-- LOGOS TAB (placeholder) -->
+      <section id="tab-logos" class="hidden">
+        <p class="mb10">Sube los logos oficiales; se asocian por nombre de lotería.</p>
+        <input type="file" id="logoUpload" multiple accept="image/*" />
+        <div id="logosList" class="mb16"></div>
+      </section>
+
+      <!-- VISIBILITY TAB -->
+      <section id="tab-visibility" class="hidden">
+        <p class="mb10">Marca qué loterías se muestran en la página pública.</p>
+        <div id="visibilityTableContainer"></div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    /**********************************************************
+     * STORAGE KEYS (both schemas) & HELPERS
+     **********************************************************/
+    const LS = {
+      // New schema (alternate)
+      CATALOG: 'br_catalog',
+      VIS: 'br_visibility',
+      RESULTS_PREFIX: 'br_results::',   // + YYYY-MM-DD
+      OCR_PREFIX: 'br_ocr_preview::',  // + YYYY-MM-DD
+      DATE: 'br_selected_date',
+      THEME: 'br_theme',
+      PIN_OK: 'br_admin_pin_ok',
+      LOGOS: 'br_logos',
+
+      // Legacy (stable)
+      LEGACY_RESULTS: 'br_results_v1',
+      LEGACY_HISTORY: 'br_history_v1',
+      LEGACY_CATALOG: 'br_catalog_v1',
+      LEGACY_LOGOS: 'br_logos_v1'
+    };
+
+    const $ = (sel, p=document) => p.querySelector(sel);
+    const $$ = (sel, p=document) => Array.from(p.querySelectorAll(sel));
+    const todayStr = () => new Date().toISOString().slice(0,10);
+
+    function readJSON(key, fallback) { try { const t = localStorage.getItem(key); return t ? JSON.parse(t) : fallback; } catch(e) { console.error('readJSON', key, e); return fallback; } }
+    function writeJSON(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+    function resultsKey(dateStr) { return LS.RESULTS_PREFIX + dateStr; }
+    function ocrKey(dateStr) { return LS.OCR_PREFIX + dateStr; }
+
+    /**********************************************************
+     * Catalog seed (array form) — based on v8.3.x
+     **********************************************************/
+    const SeedCatalog = [
+      { id:'usa/ny/Midday',  section:'usa', lottery:'New York', draw:'Midday',  drawTime:'14:30', closeTime:'14:10', days:[0,1,2,3,4,5,6], visible:true },
+      { id:'usa/ny/Evening', section:'usa', lottery:'New York', draw:'Evening', drawTime:'22:30', closeTime:'22:10', days:[0,1,2,3,4,5,6], visible:true },
+      { id:'usa/nj/Midday',  section:'usa', lottery:'New Jersey', draw:'Midday',  drawTime:'12:59', closeTime:'12:39', days:[0,1,2,3,4,5,6], visible:true },
+      { id:'usa/nj/Evening', section:'usa', lottery:'New Jersey', draw:'Evening', drawTime:'22:57', closeTime:'22:37', days:[0,1,2,3,4,5,6], visible:true },
+      { id:'usa/ct/Day', section:'usa', lottery:'Connecticut', draw:'Day', drawTime:'13:57', closeTime:'13:37', days:[0,1,2,3,4,5,6], visible:true },
+      { id:'usa/ct/Night', section:'usa', lottery:'Connecticut', draw:'Night', drawTime:'22:29', closeTime:'22:09', days:[0,1,2,3,4,5,6], visible:true },
+      { id:'usa/fl/Midday', section:'usa', lottery:'Florida', draw:'Midday', drawTime:'13:30', closeTime:'13:10', days:[0,1,2,3,4,5,6], visible:true },
+      { id:'usa/fl/Evening', section:'usa', lottery:'Florida', draw:'Evening', drawTime:'21:45', closeTime:'21:25', days:[0,1,2,3,4,5,6], visible:true },
+      { id:'special/ny-bk/AM', section:'special', lottery:'NY-BK', draw:'AM', drawTime:'12:00', closeTime:'11:40', days:[0,1,2,3,4,5,6], visible:true },
+      { id:'special/ny-bk/PM', section:'special', lottery:'NY-BK', draw:'PM', drawTime:'22:00', closeTime:'21:40', days:[0,1,2,3,4,5,6], visible:true },
+      { id:'usa/ga/Midday',  section:'usa', lottery:'Georgia', draw:'Midday',  drawTime:'12:29', closeTime:'12:09', days:[0,1,2,3,4,5,6], visible:true },
+      { id:'usa/ga/Evening', section:'usa', lottery:'Georgia', draw:'Evening', drawTime:'23:34', closeTime:'23:14', days:[0,1,2,3,4,5,6], visible:true },
+      { id:'usa/ga/Night',  section:'usa', lottery:'Georgia', draw:'Night',  drawTime:'23:59', closeTime:'23:39', days:[0,1,2,3,4,5,6], visible:true },
+      { id:'usa/pa/Day',  section:'usa', lottery:'Pennsylvania', draw:'Day',  drawTime:'13:35', closeTime:'13:15', days:[0,1,2,3,4,5,6], visible:true },
+      { id:'usa/pa/Evening', section:'usa', lottery:'Pennsylvania', draw:'Evening', drawTime:'18:59', closeTime:'18:39', days:[0,1,2,3,4,5,6], visible:true },
+      // (trimmed: add the rest from your alt file as needed)
+    ];
+
+
+    
+    // Ensure catalog + visibility in storage (new schema). If something is already there, merge by id.
+    function ensureCatalog() {
+      let catalog = readJSON(LS.CATALOG, null);
+      if (!catalog || !Array.isArray(catalog) || catalog.length < 2) {
+        catalog = SeedCatalog.slice();
+      } else {
+        const ids = new Set(catalog.map(x=>x.id));
+        SeedCatalog.forEach(s => { if(!ids.has(s.id)) catalog.push(s); });
+      }
+      writeJSON(LS.CATALOG, catalog);
+      return catalog;
+    }
+    function ensureVisibility(catalog) {
+      let vis = readJSON(LS.VIS, null);
+      if (!vis || typeof vis !== 'object') vis = {};
+      catalog.forEach(it => { if(!(it.id in vis)) vis[it.id] = true; });
+      writeJSON(LS.VIS, vis);
+      return vis;
+    }
+    function getTileISODate(id){
+  // We already write legacy results as: legacy[section][state][draw] = { value, ts }
+  const legacy = readJSON(LS.LEGACY_RESULTS, {});
+  const [section, state, draw] = id.split('/');
+  const ts = legacy?.[section]?.[state]?.[draw]?.ts || null;  // e.g. "2025-10-13" or full ISO
+  return ts ? ts.slice(0,10) : null;
+}
+function formatDateHuman(iso){
+  // Avoid TZ off-by-one by anchoring noon UTC
+  const d = iso ? new Date(iso + 'T12:00:00Z') : new Date();
+  // Use the browser locale; change to 'en-US' if you want to force English.
+  return d.toLocaleDateString(undefined, { weekday:'long', month:'short', day:'numeric', year:'numeric' });
+}
+    // Keep the selected date on 'today' unless the Admin drawer is open
+function maybeAdvanceSelectedDate(iso){
+  const synced = (iso || new Date().toISOString()).slice(0,10);
+  const current = (JSON.parse(localStorage.getItem('br_selected_date') || 'null')) || new Date().toISOString().slice(0,10);
+  const drawerOpen = document.getElementById('drawer').classList.contains('open');
+  // only move forward; never regress the selected date
+  if (!drawerOpen && synced > current) {
+    localStorage.setItem('br_selected_date', JSON.stringify(synced));
+  }
+}
+
+    /**********************************************************
+     * Store adapter — reads/writes BOTH schemas safely
+     **********************************************************/
+    const Store = {
+      dateStr(){ return ($('#datePicker')?.value) || readJSON(LS.DATE, todayStr()) || todayStr(); },
+
+      // Read results for selected date into the NEW shape: { 'usa/ny/Midday': '123-4567', ... }
+      readResults(date){
+        const A = readJSON(resultsKey(date), {});
+        // Merge legacy if missing
+        const legacy = readJSON(LS.LEGACY_RESULTS, {});
+        const fromLegacy = {};
+        // legacy shape: results[section][id][draw] = { value, ts }
+        for(const section of Object.keys(legacy||{})){
+          for(const id of Object.keys(legacy[section]||{})){
+            for(const draw of Object.keys(legacy[section][id]||{})){
+              const rec = legacy[section][id][draw];
+              const ds = (rec?.ts || '').slice(0,10);
+              if (ds === date && rec?.value) fromLegacy[`${section}/${id}/${draw}`] = rec.value;
+            }
+          }
+        }
+        return Object.assign({}, fromLegacy, A); // A overwrites legacy
+      },
+
+      // Write to both schemas
+      setById(id, value, iso){
+        const date = (iso||new Date().toISOString()).slice(0,10);
+        // new
+        const obj = readJSON(resultsKey(date), {});
+        obj[id] = value;
+        writeJSON(resultsKey(date), obj);
+        // legacy
+        const [section, state, draw] = id.split('/');
+        if(section && state && draw){
+          const legacy = readJSON(LS.LEGACY_RESULTS, {});
+          legacy[section] = legacy[section] || {};
+          legacy[section][state] = legacy[section][state] || {};
+          legacy[section][state][draw] = { value, ts: iso || new Date().toISOString() };
+          writeJSON(LS.LEGACY_RESULTS, legacy);
+          // Append to legacy history
+          const HK = 'br_history_v1';
+          const hist = readJSON(HK, {});
+          const key = `${section}/${state}/${draw}`;
+          hist[key] = hist[key] || [];
+          const last = hist[key][hist[key].length-1];
+          if(!last || last.value !== value){ hist[key].push({ value, ts: iso||new Date().toISOString() }); if(hist[key].length>100) hist[key].shift(); }
+          writeJSON(HK, hist);
+        }
+      }
+    };
+
+    /**********************************************************
+     * Public board render (alternate UI)
+     **********************************************************/
+    function buildPublicBoard(){
+      const catalog = ensureCatalog();
+      const vis = ensureVisibility(catalog);
+      const date = Store.dateStr();
+      writeJSON(LS.DATE, date);
+      const results = Store.readResults(date);
+
+      $('#grid-usa').innerHTML = '';
+      $('#grid-rd').innerHTML = '';
+      $('#grid-special').innerHTML = '';
+
+      for(const item of catalog){
+        if(!vis[item.id]) continue;
+        const where = item.section === 'usa' ? '#grid-usa' : (item.section === 'rd' ? '#grid-rd' : '#grid-special');
+        const res = results[item.id] || '';
+const iso = getTileISODate(item.id);               // "YYYY-MM-DD" (from Store.setById)
+const prettyDate = iso ? formatDateHuman(iso) : ''; // "Monday, Oct 13, 2025"
+
+const el = document.createElement('div');
+el.className = 'card';
+el.innerHTML = `
+  <div class="card-header">
+    <div class="badge">${(item.lottery[0]||'?')+(item.lottery.split(' ')[1]?.[0]||'')}</div>
+    <div><div class="title">${item.lottery}</div><div class="subtitle">${item.draw}</div></div>
+    <div class="right status">ET</div>
+  </div>
+  <div class="card-body">
+    <div class="result-big" data-res-for="${item.id}">${res?res:'—'}</div>
+    <div class="date-line">${prettyDate || '&nbsp;'}</div>
+    <div class="meta"><span>Sorteo: ${item.drawTime}</span><span>Cierre: ${item.closeTime}</span></div>
+  </div>
+  <div class="card-footer">
+    <span class="chip">ID: ${item.id}</span>
+    <span class="link" data-hist="${item.id}">Ver historial</span>
+  </div>`;
+        $(where).appendChild(el);
+        $('[data-hist]', el).onclick = () => openHistory(item.id);
+      }
+    }
+
+    // Minimal history view (uses legacy history storage so it works with existing data)
+    function openHistory(id){
+      const [section,state,draw] = id.split('/');
+      const key = `${section}/${state}/${draw}`;
+      const hist = readJSON(LS.LEGACY_HISTORY, {});
+      const arr = hist[key] || [];
+      const msg = arr.slice(-12).map(x=>`${x.ts?.slice(0,16).replace('T',' ')} — ${x.value}`).join('\n') || 'Sin historial';
+      alert(`${id}\n\n${msg}`);
+    }
+
+    /**********************************************************
+     * Admin: drawer wiring (theme/lang/date) + tables
+     **********************************************************/
+    const drawer = $('#drawer');
+    $('#adminBtn').addEventListener('click', () => {
+      if (localStorage.getItem(LS.PIN_OK) !== 'true') {
+        const pin = prompt('Introduce PIN de administrador:');
+        if (pin !== '1983') return alert('PIN incorrecto');
+        localStorage.setItem(LS.PIN_OK, 'true');
+      }
+      drawer.classList.add('open');
+      syncAdminUI();
+    });
+    $('#closeDrawer').onclick = () => drawer.classList.remove('open');
+    $$('.tab').forEach(t => t.addEventListener('click', () => switchTab(t)));
+
+    function switchTab(el){
+      $$('.tab').forEach(x => x.classList.remove('active')); el.classList.add('active');
+      const id = el.dataset.tab;
+      $('#tab-results').classList.toggle('hidden', id!=='results');
+      $('#tab-ocr').classList.toggle('hidden', id!=='ocr');
+      $('#tab-catalog').classList.toggle('hidden', id!=='catalog');
+      $('#tab-logos').classList.toggle('hidden', id!=='logos');
+      $('#tab-visibility').classList.toggle('hidden', id!=='visibility');
+    }
+
+    function syncAdminUI(){
+      const theme = localStorage.getItem(LS.THEME) || 'dark';
+      document.body.dataset.theme = theme;
+      $('#themeToggle').checked = theme === 'light';
+      $('#themeToggle').onchange = () => { document.body.dataset.theme = $('#themeToggle').checked ? 'light' : 'dark'; localStorage.setItem(LS.THEME, document.body.dataset.theme); };
+
+      const d = readJSON(LS.DATE, todayStr()) || todayStr();
+      $('#datePicker').value = d;
+      $('#datePicker').onchange = () => { writeJSON(LS.DATE, $('#datePicker').value); buildPublicBoard(); buildResultsTable(); };
+
+      buildResultsTable(); buildOcrPreviewTable(); buildCatalogTable(); buildVisibilityTable(); buildLogosList();
+    }
+
+    function buildResultsTable(){
+      const catalog = ensureCatalog();
+      const vis = ensureVisibility(catalog);
+      const date = Store.dateStr();
+      const res = Store.readResults(date);
+
+      let html = '';
+      const groups = { usa:[], rd:[], special:[] };
+      catalog.forEach(it => { if (vis[it.id]) groups[it.section].push(it); });
+      function renderGroup(title, arr){ if(!arr.length) return ''; let rows = arr.map(it=>`<tr data-id="${it.id}"><td>${it.section.toUpperCase()}</td><td>${it.lottery}</td><td>${it.draw}</td><td>${it.drawTime}</td><td>${it.closeTime}</td><td><input type="text" value="${res[it.id]||''}" data-res /></td><td><button class="btn saveOne">Save</button></td></tr>`).join(''); return `<h3 class="mb6">${title}</h3><table class="table"><thead><tr><th>Sección</th><th>Lotería</th><th>Draw</th><th>Hora sorteo</th><th>Hora cierre</th><th>Resultado</th><th></th></tr></thead><tbody>${rows}</tbody></table>`; }
+      html += renderGroup('USA Lotteries', groups.usa);
+      html += renderGroup('Santo Domingo Lotteries', groups.rd);
+      html += renderGroup('Special Lotteries', groups.special);
+      $('#resultsTableContainer').innerHTML = html;
+
+      $$('.saveOne', $('#resultsTableContainer')).forEach(btn => {
+        btn.addEventListener('click', (ev) => { const tr = ev.target.closest('tr'); const id = tr.dataset.id; const input = $('[data-res]', tr); Store.setById(id, input.value.trim(), new Date().toISOString()); buildPublicBoard(); });
+      });
+
+      $('#resetResultsBtn').onclick = () => { if (!confirm('¿Borrar todos los resultados del día seleccionado?')) return; writeJSON(resultsKey(Store.dateStr()), {}); buildResultsTable(); buildPublicBoard(); };
+    }
+
+    /**********************************************************
+     * OCR (preview only — same UI, keeps your map & extractor hooks)
+     **********************************************************/
+    const OCR_MAP = [
+      { pat:/\b(mid(?:day)?|am)\b/i, target:'usa/ny/Midday' },
+      { pat:/\b(eve|evening|pm)\b/i, target:'usa/ny/Evening' }
+      // (extend with your full map)
+    ];
+    function extractResultNumbers(str){ const s=str.replace(/[^\dx\- ]+/gi,' ').trim(); const m1=s.match(/(\d{3})\D+(\d{4})/); if(m1) return `${m1[1]}-${m1[2]}`; const m2=s.match(/(\d{2})\D+(\d{2})\D+(\d{2})/); if(m2) return `${m2[1]}-${m2[2]}-${m2[3]}`; const m3=s.match(/\b(\d{3,4})\b/); if(m3) return m3[1]; const d=s.replace(/\D+/g,''); return d||''; }
+    function previewTextToTable(text){ const lines=text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean); return lines.map(line=>{ let targetId=''; for(const r of OCR_MAP){ if(r.pat.test(line)){ targetId=r.target; break; } } return { source:line, targetId, value:extractResultNumbers(line) }; }); }
+    function buildOcrPreviewTable(){ const date=Store.dateStr(); const snap=readJSON(ocrKey(date), []); let html=`<table class="table"><thead><tr><th>Abbrev.</th><th>Map</th><th>Detected</th><th>Value</th><th>Actions</th></tr></thead><tbody>`; html+=snap.map((r,i)=>`<tr data-i="${i}"><td>${r.source}</td><td>${r.targetId||'—'}</td><td>${extractResultNumbers(r.source)}</td><td><input type="text" value="${r.value||''}" data-val /></td><td><button class="btn saveRow">Save</button></td></tr>`).join(''); html+='</tbody></table>'; $('#ocrPreviewContainer').innerHTML=html; $$('.saveRow', $('#ocrPreviewContainer')).forEach(btn=>{ btn.onclick=(e)=>{ const tr=e.target.closest('tr'); const i=Number(tr.dataset.i); const rows=readJSON(ocrKey(Store.dateStr()), []); const row=rows[i]; if(!row?.targetId){ alert('Falta Map/ID'); return; } const v=$('[data-val]', tr).value.trim(); Store.setById(row.targetId, v, new Date().toISOString()); buildPublicBoard(); buildResultsTable(); }; }); }
+
+    // Minimal catalog & visibility placeholders (kept from alt version)
+    function buildCatalogTable(){ const c=ensureCatalog(); let html='<table class="table"><thead><tr><th>ID</th><th>Lotería</th><th>Draw</th><th>Visible</th></tr></thead><tbody>'; for(const it of c){ html += `<tr><td>${it.id}</td><td>${it.lottery}</td><td>${it.draw}</td><td>${it.visible?'✔':''}</td></tr>`; } html+='</tbody></table>'; $('#catalogTableContainer').innerHTML=html; }
+    function buildVisibilityTable(){ const c=ensureCatalog(); const vis=ensureVisibility(c); let html='<table class="table"><thead><tr><th>ID</th><th>Visible</th></tr></thead><tbody>'; for(const it of c){ html+=`<tr><td>${it.id}</td><td><input type="checkbox" ${vis[it.id]?'checked':''} data-id="${it.id}"/></td></tr>`; } html+='</tbody></table>'; $('#visibilityTableContainer').innerHTML=html; $$('#visibilityTableContainer input[type="checkbox"]').forEach(cb=>cb.onchange=(e)=>{ const id=e.target.dataset.id; const v=ensureVisibility(c); v[id]=e.target.checked; writeJSON(LS.VIS, v); buildPublicBoard(); }); }
+    function buildLogosList(){ const logos = readJSON(LS.LOGOS, {}); let html=''; for(const [k,v] of Object.entries(logos)){ html += `<div class="row mb6"><div class="badge" style="overflow:hidden"><img src="${v}" style="width:34px;height:34px;border-radius:10px"/></div><div>${k}</div></div>`; } $('#logosList').innerHTML = html || '<em>Sin logos subidos.</em>'; }
+
+    /**********************************************************
+     * Auto Scroll (keep working with #autoScrollHeader)
+     **********************************************************/
+    let scrollTimer=null, scrollDown=true; function toggleAutoScroll(){ const b=$('#autoScrollHeader'); if(scrollTimer){ clearInterval(scrollTimer); scrollTimer=null; if(b) b.textContent='⬇ Auto Scroll'; return; } if(b) b.textContent='■ Detener'; const area=document.scrollingElement; scrollTimer=setInterval(()=>{ const step=0.35; area.scrollBy(0, scrollDown?step:-step); if(area.scrollTop+window.innerHeight+2>=area.scrollHeight) scrollDown=false; if(area.scrollTop<=1) scrollDown=true; }, 10);} $('#autoScrollHeader').onclick=toggleAutoScroll;
+
+    /**********************************************************
+     * Backend fetch (server/ index.js) — NY now, more later
+     **********************************************************/
+    async function fetchNY(){
+      const r = await fetch(api('/api/ny/latest'), { cache: 'no-store' });
+      if(!r.ok) throw new Error('NY bridge failed '+r.status);
+      return await r.json(); // { dateISO, midday, evening }
+    }
+    async function syncNY(){
+      try{
+        const ny = await fetchNY();
+        if(ny.midday)  Store.setById('usa/ny/Midday',  ny.midday,  ny.dateISO);
+        if(ny.evening) Store.setById('usa/ny/Evening', ny.evening, ny.dateISO);
+        maybeAdvanceSelectedDate(ny.dateISO);
+        buildPublicBoard();
+        console.info('NY updated', ny);
+      }catch(err){ console.warn('NY sync failed', err); }
+    }
+
+ async function fetchNJ(){
+  const r = await fetch(api('/api/nj/latest'), { cache: 'no-store' });
+  if(!r.ok) throw new Error('NJ bridge failed '+r.status);
+  return await r.json();
+}
+async function syncNJ(){
+  try{
+    const nj = await fetchNJ();
+    if(nj.midday)  Store.setById('usa/nj/Midday',  nj.midday,  nj.dateISO);
+    if(nj.evening) Store.setById('usa/nj/Evening', nj.evening, nj.dateISO);
+    maybeAdvanceSelectedDate(nj.dateISO);
+    buildPublicBoard();
+    console.info('NJ updated', nj);
+  }catch(e){ console.warn('NJ sync failed', e); }
+}
+
+// === Connecticut (map midday->Day, evening->Night) ===
+async function fetchCT(){
+  const r = await fetch(api('/api/ct/latest'), { cache: 'no-store' });
+  if(!r.ok) throw new Error('CT bridge failed '+r.status);
+  return await r.json();
+}
+async function syncCT(){
+  try{
+    const ct = await fetchCT();
+    if(ct.midday)  Store.setById('usa/ct/Day',   ct.midday,  ct.dateISO);
+    if(ct.evening) Store.setById('usa/ct/Night', ct.evening, ct.dateISO);
+    maybeAdvanceSelectedDate(ct.dateISO);
+    buildPublicBoard();
+    console.info('CT updated', ct);
+  }catch(e){ console.warn('CT sync failed', e); }
+}
+
+// === Florida ===
+async function fetchFL(){
+  const r = await fetch(api('/api/fl/latest'), { cache: 'no-store' })
+  if(!r.ok) throw new Error('FL bridge failed '+r.status);
+  return await r.json();
+}
+async function syncFL(){
+  try{
+    const fl = await fetchFL();
+    if(fl.midday)  Store.setById('usa/fl/Midday',  fl.midday,  fl.dateISO);
+    if(fl.evening) Store.setById('usa/fl/Evening', fl.evening, fl.dateISO);
+    maybeAdvanceSelectedDate(fl.dateISO);
+    buildPublicBoard();
+    console.info('FL updated', fl);
+  }catch(e){ console.warn('FL sync failed', e); }
+}
+async function fetchGA(){
+  const r = await fetch(api('/api/ga/latest'), { cache: 'no-store' });
+  if(!r.ok) throw new Error('GA bridge failed '+r.status);
+  return await r.json(); // { dateISO, midday, evening, night }
+}
+async function syncGA(){
+  try{
+    const ga = await fetchGA();
+    if(ga.midday)  Store.setById('usa/ga/Midday',  ga.midday,  ga.dateISO);
+    if(ga.evening) Store.setById('usa/ga/Evening', ga.evening, ga.dateISO);
+    if(ga.night)   Store.setById('usa/ga/Night',   ga.night,   ga.dateISO);
+    maybeAdvanceSelectedDate(ga.dateISO);
+    buildPublicBoard();
+    console.info('GA updated', ga);
+  }catch(e){ console.warn('GA sync failed', e); }
+}
+
+async function fetchPA(){
+  const r = await fetch(api('/api/pa/latest'), { cache: 'no-store' });
+  if(!r.ok) throw new Error('PA bridge failed '+r.status);
+  return await r.json(); // { dateISO, midday, evening }
+}
+async function syncPA(){
+  try{
+    const pa = await fetchPA();
+    if(pa.midday)  Store.setById('usa/pa/Day',     pa.midday,  pa.dateISO);
+    if(pa.evening) Store.setById('usa/pa/Evening', pa.evening, pa.dateISO);
+    maybeAdvanceSelectedDate(pa.dateISO);
+    buildPublicBoard();
+    console.info('PA updated', pa);
+  }catch(e){ console.warn('PA sync failed', e); }
+}    
+
+    // Later: add sync functions for NJ/CT/FL... and call them inside syncAll()
+  async function syncAll(){
+  const tasks = [syncNY(), syncNJ(), syncCT(), syncFL(), syncGA(), syncPA()];
+  await Promise.allSettled(tasks);
+  // Repaint once after all writes land
+  buildPublicBoard();
+}
+
+    /**********************************************************
+     * Live refresh strategy
+     **********************************************************/
+    function isBurstNow(){
+      // around NY times from catalog
+      const catalog = ensureCatalog();
+      const ny = catalog.filter(x=>x.id.startsWith('usa/ny/'));
+      const now = new Date();
+      return ny.some(d=>{ const [h,m]=d.drawTime.split(':').map(Number); const start=new Date(now); start.setHours(h, m-15, 0, 0); const end=new Date(now); end.setHours(h, m+25, 0, 0); return d.days.includes(now.getDay()) && now>=start && now<=end; });
+    }
+    let liveTimer=null; async function liveTick(){ try{ await syncAll(); }catch{} const next = isBurstNow()? 20*1000 : 10*60*1000; liveTimer = setTimeout(liveTick, next); }
+
+    // Sync button
+    $('#syncNowBtn').onclick = async ()=>{ const t= $('#syncNowBtn'); const old=t.textContent; t.textContent='…'; t.disabled=true; try{ await syncAll(); } finally { t.textContent=old; t.disabled=false; } };
+
+    /**********************************************************
+     * Boot
+     **********************************************************/
+    (function init(){
+  const theme = localStorage.getItem(LS.THEME) || 'dark';
+  document.body.dataset.theme = theme;
+
+  // NEW: if the saved date is behind, bump to today
+  const today = todayStr();
+  const saved = (JSON.parse(localStorage.getItem(LS.DATE) || 'null')) || today;
+  if (saved < today) localStorage.setItem(LS.DATE, JSON.stringify(today));
+  if (!localStorage.getItem(LS.DATE)) localStorage.setItem(LS.DATE, JSON.stringify(today));
+
+  buildPublicBoard();
+  liveTick();
+})();
+  </script>
+</body>
+</html>
