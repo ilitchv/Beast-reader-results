@@ -387,7 +387,8 @@ el.innerHTML = `
     <span class="link" data-hist="${item.id}">Ver historial</span>
   </div>`;
         $(where).appendChild(el);
-        $('[data-hist]', el).onclick = () => openHistory(item.id);
+        const histLink = $('[data-hist]', el);
+        if (histLink) histLink.onclick = () => openHistory(item.id);
       }
     }
 
