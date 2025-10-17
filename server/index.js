@@ -85,7 +85,7 @@ function extractFirstInLatest($, n) {
    return d2 ? { digits: d2, date } : { digits: null, date: null };
  }
 function parseDateFromText(text){
-  const y = ().year();
+  const y = dayjs.tz(Date.now(), 'America/New_York').year();
   const t = (text||'').replace(/\s+/g,' ');
 
   // Fast-path: "today" / "tonight" → use current date
