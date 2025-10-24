@@ -54,6 +54,41 @@ function extractFirstInLatest($, n) {
   if (bySpans) return bySpans;
   return pickNDigitsFromTextSafe($, $.root(), n);
 }
+// Find the nearest small piece of text around a node that looks like a date.
+// Scans: the node itself, its children, prev/next siblings (up to 4), and up to 3 ancestors.
+function findNearbyDate($, $start) {
+  if (!$start || !$start.length) return null;
+
+  const seen = new Set();
+  const enqueue = node => { if (node && node.length) seen.add(node.get(0)); };
+
+  const queue = [];
+  const push = sel => $(sel).each((_, el) => queue.push($(el)));
+
+  // 1) The node itself + small descendants
+  queue.push($start);
+  push($start.find('small, .meta, .subtitle, .sub, p, span'));
+
+  // 2) A few siblings around it
+  let nxt = $start, prv = $start;
+  for (let i = 0; i < 4; i++) {
+    nxt = nxt.next();  if (nxt.length) { queue.push(nxt); push(nxt.find('small,p,span')); }
+    prv = prv.prev();  if (prv.length) { queue.push(prv); push(prv.find('small,p,span')); }
+  }
+
+  // 3) Up to 3 ancestors (and their small children)
+  let anc = $start.parent();
+  for (let i = 0; i < 3 && anc.length; i++, anc = anc.parent()) {
+    queue.push(anc); push(anc.find('small,p,span'));
+  }
+
+  for (const $node of queue) {
+    const text = $node.text();
+    const d = parseDateFromText(text);
+    if (d) return d;
+  }
+  return null;
+}
 
 // Accept "Day", "Daytime" for Day and just "Night" for night.
  const CT_LABEL_RE = {
@@ -204,23 +239,19 @@ function extractByLabel($, label, n) {
   for (const $cand of candidates) {
     const d1 = pickConsecutiveSingleDigitNodes($, $cand, n);
       if (d1) {
-    const d = parseDateFromText($cand.text()) ||
-              parseDateFromText($labelEl.text()) ||
-              parseDateFromText($.root().text());    // NEW: page-wide fallback
+    const d = findNearbyDate($, $cand) || findNearbyDate($, $labelEl) || null;
     return { digits: d1, date: d };
   }
     const d2 = pickNDigitsFromTextSafe($, $cand, n);
     if (d2) {
-      const d = parseDateFromText($cand.text()) ||
-                parseDateFromText($labelEl.text()) ||
-                parseDateFromText($.root().text());    // NEW: page-wide fallback
+      const d = findNearbyDate($, $cand) || findNearbyDate($, $labelEl) || null;
       return { digits: d2, date: d };
     }
   }
 
   // 5) Last resort: use the label element itself
   const d3 = pickConsecutiveSingleDigitNodes($, $labelEl, n) || pickNDigitsFromTextSafe($, $labelEl, n);
-  const d  = parseDateFromText($labelEl.text()) || parseDateFromText($.root().text()); // NEW fallback
+  const d  = findNearbyDate($, $labelEl) || null;
   return { digits: d3, date: d };
 }
 // ── try a list of URLs; return {digits,date} without throwing ─────────────────
@@ -248,14 +279,16 @@ async function tryUrls(urls, label, n, tag){
       if (isCT && isCtDedicated) {
         // CT dedicated draw pages – numbers appear without an adjacent draw label
         digits = extractFirstInLatest($, n);
-        date   = parseDateFromText($.root().text()) || null;   // no forced “now”
+        const $scope = $('section,main,article,.results,.c-results-card').first();
+        date = findNearbyDate($, $scope) || null;
       } else if (isCT) {
         // CT generic pages – use label-aware row extraction
         ({ digits, date } = extractRowByLabel($, label, n));
       } else if (isGA && isGaDedicated) {
         // GA dedicated pages (midday-3/4, cash-3/4-evening, cash-3/4)
         digits = extractFirstInLatest($, n);
-        date   = parseDateFromText($.root().text()) || null;   // no forced “now”
+        const $scope = $('section,main,article,.results,.c-results-card').first();
+        date = findNearbyDate($, $scope) || null;
       } else {
         // Generic case: look for a row near the label inside "Latest numbers"
         ({ digits, date } = extractByLabel($, label, n));
