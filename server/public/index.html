@@ -321,7 +321,7 @@ function maybeAdvanceSelectedDate(iso){
 
       // Write to both schemas
       setById(id, value, iso){
-        const date = (iso||new Date().toISOString()).slice(0,10);
+        const date = (iso || (localDateISO() + 'T00:00:00')).slice(0,10);
         // new
         const obj = readJSON(resultsKey(date), {});
         obj[id] = value;
