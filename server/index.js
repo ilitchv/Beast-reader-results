@@ -116,17 +116,17 @@ function findNearbyDate($, $start) {
    if (!best) return { digits: null, date: null };
    const d1 = pickConsecutiveSingleDigitNodes($, best, n);
    const d2 = d1 || pickNDigitsFromTextSafe($, best, n);
-   const date = parseDateFromText(best.text()) || parseDateFromText($.root().text());
-   return d2 ? { digits: d2, date } : { digits: null, date: null };
+   const date = findNearbyDate($, best) || null;
+  return d2 ? { digits: d2, date } : { digits: null, date: null };
  }
 function parseDateFromText(text){
   const y = dayjs.tz(Date.now(), 'America/New_York').year();
   const t = (text||'').replace(/\s+/g,' ');
 
-  // Fast-path: "today" / "tonight" → use current date
-  if (/\b(today|tonight|this (?:evening|afternoon|morning))\b/i.test(t)) {
-    return dayjs.tz(Date.now(), 'America/New_York'); // for "today/tonight"
-  }
+// Ignore "today/tonight" — only explicit dates count here
+if (/\b(today|tonight|this (?:evening|afternoon|morning))\b/i.test(t)) {
+  return null;
+}
 
   // Month-name format: "September 10, 2025" or "Sep 10"
   const m1 = t.match(/\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{1,2})(?:,\s*(\d{4}))?/i);
