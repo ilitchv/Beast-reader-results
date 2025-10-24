@@ -300,6 +300,12 @@ function maybeAdvanceSelectedDate(iso){
         return Object.assign({}, fromLegacy, A); // A overwrites legacy
       },
 
+      getLastTs(id){
+        const [section, state, draw] = id.split('/');
+        const legacy = readJSON(LS.LEGACY_RESULTS, {});
+        return legacy?.[section]?.[state]?.[draw]?.ts || null;
+      },
+
       // Write to both schemas
       setById(id, value, iso){
         const date = (iso||new Date().toISOString()).slice(0,10);
@@ -313,7 +319,7 @@ function maybeAdvanceSelectedDate(iso){
           const legacy = readJSON(LS.LEGACY_RESULTS, {});
           legacy[section] = legacy[section] || {};
           legacy[section][state] = legacy[section][state] || {};
-          legacy[section][state][draw] = { value, ts: iso || new Date().toISOString() };
+          legacy[section][state][draw] = { value, ts: iso || (localDateISO() + 'T00:00:00') };
           writeJSON(LS.LEGACY_RESULTS, legacy);
           // Append to legacy history
           const HK = 'br_history_v1';
@@ -365,6 +371,18 @@ function maybeAdvanceSelectedDate(iso){
         $(where).appendChild(el);
         $('[data-hist]', el).onclick = () => openHistory(item.id);
       }
+      const ts = Store.getLastTs(item.id);
+const dateNode = $('[data-date-for]', el);
+if (dateNode){
+  if (ts){
+    const dISO = ts.slice(0,10); // support "YYYY-MM-DD" or "YYYY-MM-DDTHH:mm"
+    dateNode.textContent = 'Updated: ' + fmtHuman(dISO);
+    dateNode.dataset.iso = dISO; // optional: keep raw on the node
+  } else {
+    dateNode.textContent = 'Updated: —';
+  }
+}
+
     }
 
     // Minimal history view (uses legacy history storage so it works with existing data)
@@ -432,7 +450,7 @@ function maybeAdvanceSelectedDate(iso){
       $('#resultsTableContainer').innerHTML = html;
 
       $$('.saveOne', $('#resultsTableContainer')).forEach(btn => {
-        btn.addEventListener('click', (ev) => { const tr = ev.target.closest('tr'); const id = tr.dataset.id; const input = $('[data-res]', tr); Store.setById(id, input.value.trim(), new Date().toISOString()); buildPublicBoard(); });
+        btn.addEventListener('click', (ev) => { const tr = ev.target.closest('tr'); const id = tr.dataset.id; const input = $('[data-res]', tr); Store.setById(id, input.value.trim(), localDateISO() + 'T00:00:00'); buildPublicBoard(); });
       });
 
       $('#resetResultsBtn').onclick = () => { if (!confirm('¿Borrar todos los resultados del día seleccionado?')) return; writeJSON(resultsKey(Store.dateStr()), {}); buildResultsTable(); buildPublicBoard(); };
