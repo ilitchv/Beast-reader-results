@@ -80,8 +80,6 @@
     textarea { width:100%; min-height:160px; resize:vertical; background:var(--card-3); border:1px solid rgba(255,255,255,.1); color:var(--text); border-radius:12px; padding:10px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
     .hidden { display:none; }
     .right { margin-left:auto; }
-    /* date line under the numbers */
-    .date-line { font-size:12px; color: var(--muted); margin-top:2px; }
   </style>
 </head>
 <body data-theme="dark">
@@ -168,8 +166,6 @@
         <div id="catalogTableContainer"></div>
       </section>
 
-      
-
       <!-- LOGOS TAB (placeholder) -->
       <section id="tab-logos" class="hidden">
         <p class="mb10">Sube los logos oficiales; se asocian por nombre de lotería.</p>
@@ -209,13 +205,7 @@
 
     const $ = (sel, p=document) => p.querySelector(sel);
     const $$ = (sel, p=document) => Array.from(p.querySelectorAll(sel));
-    const todayStr = () => {
-      const d = new Date();                   // local time (prevents “tomorrow” drift)
-      const y = d.getFullYear();
-      const m = String(d.getMonth()+1).padStart(2,'0');
-      const day = String(d.getDate()).padStart(2,'0');
-      return `${y}-${m}-${day}`;              // YYYY-MM-DD (local)
-    };
+    const todayStr = () => new Date().toISOString().slice(0,10);
 
     function readJSON(key, fallback) { try { const t = localStorage.getItem(key); return t ? JSON.parse(t) : fallback; } catch(e) { console.error('readJSON', key, e); return fallback; } }
     function writeJSON(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
@@ -265,26 +255,14 @@
       writeJSON(LS.VIS, vis);
       return vis;
     }
-    function getTileISODate(id){
-  // We already write legacy results as: legacy[section][state][draw] = { value, ts }
-  const legacy = readJSON(LS.LEGACY_RESULTS, {});
-  const [section, state, draw] = id.split('/');
-  const ts = legacy?.[section]?.[state]?.[draw]?.ts || null;  // e.g. "2025-10-13" or full ISO
-  return ts ? ts.slice(0,10) : null;
-}
-function formatDateHuman(iso){
-  // Avoid TZ off-by-one by anchoring noon UTC
-  const d = iso ? new Date(iso + 'T12:00:00Z') : new Date();
-  // Use the browser locale; change to 'en-US' if you want to force English.
-  return d.toLocaleDateString(undefined, { weekday:'long', month:'short', day:'numeric', year:'numeric' });
-}
     // Keep the selected date on 'today' unless the Admin drawer is open
 function maybeAdvanceSelectedDate(iso){
-  const synced  = (iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? iso.slice(0,10) : todayStr());
-  const current = (JSON.parse(localStorage.getItem(LS.DATE) || 'null')) || todayStr();
+  const synced = (iso || new Date().toISOString()).slice(0,10);
+  const current = (JSON.parse(localStorage.getItem('br_selected_date') || 'null')) || new Date().toISOString().slice(0,10);
   const drawerOpen = document.getElementById('drawer').classList.contains('open');
+  // only move forward; never regress the selected date
   if (!drawerOpen && synced > current) {
-    localStorage.setItem(LS.DATE, JSON.stringify(synced));
+    localStorage.setItem('br_selected_date', JSON.stringify(synced));
   }
 }
 
@@ -315,36 +293,29 @@ function maybeAdvanceSelectedDate(iso){
 
       // Write to both schemas
       setById(id, value, iso){
-  // Prefer API's dateISO; else fall back to LOCAL today
-  const date = (iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? iso.slice(0,10) : todayStr());
-
-  // new schema: bucket by day
-  const obj = readJSON(resultsKey(date), {});
-  obj[id] = value;
-  writeJSON(resultsKey(date), obj);
-
-  // legacy schema: keep a plain YYYY-MM-DD so each tile renders its own date
-  const [section, state, draw] = id.split('/');
-  if(section && state && draw){
-    const legacy = readJSON(LS.LEGACY_RESULTS, {});
-    legacy[section] = legacy[section] || {};
-    legacy[section][state] = legacy[section][state] || {};
-    legacy[section][state][draw] = { value, ts: date };
-    writeJSON(LS.LEGACY_RESULTS, legacy);
-
-    // history: use the same date-only stamp
-    const HK = LS.LEGACY_HISTORY;
-    const hist = readJSON(HK, {});
-    const key = `${section}/${state}/${draw}`;
-    hist[key] = hist[key] || [];
-    const last = hist[key][hist[key].length-1];
-    if(!last || last.value !== value){
-      hist[key].push({ value, ts: date });
-      if(hist[key].length > 100) hist[key].shift();
-    }
-    writeJSON(HK, hist);
-  }
-}
+        const date = (iso||new Date().toISOString()).slice(0,10);
+        // new
+        const obj = readJSON(resultsKey(date), {});
+        obj[id] = value;
+        writeJSON(resultsKey(date), obj);
+        // legacy
+        const [section, state, draw] = id.split('/');
+        if(section && state && draw){
+          const legacy = readJSON(LS.LEGACY_RESULTS, {});
+          legacy[section] = legacy[section] || {};
+          legacy[section][state] = legacy[section][state] || {};
+          legacy[section][state][draw] = { value, ts: iso || new Date().toISOString() };
+          writeJSON(LS.LEGACY_RESULTS, legacy);
+          // Append to legacy history
+          const HK = 'br_history_v1';
+          const hist = readJSON(HK, {});
+          const key = `${section}/${state}/${draw}`;
+          hist[key] = hist[key] || [];
+          const last = hist[key][hist[key].length-1];
+          if(!last || last.value !== value){ hist[key].push({ value, ts: iso||new Date().toISOString() }); if(hist[key].length>100) hist[key].shift(); }
+          writeJSON(HK, hist);
+        }
+      }
     };
 
     /**********************************************************
@@ -365,26 +336,22 @@ function maybeAdvanceSelectedDate(iso){
         if(!vis[item.id]) continue;
         const where = item.section === 'usa' ? '#grid-usa' : (item.section === 'rd' ? '#grid-rd' : '#grid-special');
         const res = results[item.id] || '';
-const iso = getTileISODate(item.id);               // "YYYY-MM-DD" (from Store.setById)
-const prettyDate = iso ? formatDateHuman(iso) : ''; // "Monday, Oct 13, 2025"
-
-const el = document.createElement('div');
-el.className = 'card';
-el.innerHTML = `
-  <div class="card-header">
-    <div class="badge">${(item.lottery[0]||'?')+(item.lottery.split(' ')[1]?.[0]||'')}</div>
-    <div><div class="title">${item.lottery}</div><div class="subtitle">${item.draw}</div></div>
-    <div class="right status">ET</div>
-  </div>
-  <div class="card-body">
-    <div class="result-big" data-res-for="${item.id}">${res?res:'—'}</div>
-    <div class="date-line">${prettyDate || '&nbsp;'}</div>
-    <div class="meta"><span>Sorteo: ${item.drawTime}</span><span>Cierre: ${item.closeTime}</span></div>
-  </div>
-  <div class="card-footer">
-    <span class="chip">ID: ${item.id}</span>
-    <span class="link" data-hist="${item.id}">Ver historial</span>
-  </div>`;
+        const el = document.createElement('div');
+        el.className = 'card';
+        el.innerHTML = `
+          <div class="card-header">
+            <div class="badge">${(item.lottery[0]||'?')+(item.lottery.split(' ')[1]?.[0]||'')}</div>
+            <div><div class="title">${item.lottery}</div><div class="subtitle">${item.draw}</div></div>
+            <div class="right status">ET</div>
+          </div>
+          <div class="card-body">
+            <div class="result-big" data-res-for="${item.id}">${res?res:'—'}</div>
+            <div class="meta"><span>Sorteo: ${item.drawTime}</span><span>Cierre: ${item.closeTime}</span></div>
+          </div>
+          <div class="card-footer">
+            <span class="chip">ID: ${item.id}</span>
+            <span class="link" data-hist="${item.id}">Ver historial</span>
+          </div>`;
         $(where).appendChild(el);
         $('[data-hist]', el).onclick = () => openHistory(item.id);
       }
