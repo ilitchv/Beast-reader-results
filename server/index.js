@@ -328,7 +328,6 @@ const U = {
                     'https://www.lotteryusa.com/florida/pick-3/'
                   ], label:'Midday' },
           eve: { urls:[
-                    'https://www.lotteryusa.com/florida/evening-pick-3/',
                     'https://www.lotteryusa.com/florida/pick-3/'
                   ], label:'Evening' } },
     p4: { mid: { urls:[
@@ -336,7 +335,6 @@ const U = {
                     'https://www.lotteryusa.com/florida/pick-4/'
                   ], label:'Midday' },
           eve: { urls:[
-                    'https://www.lotteryusa.com/florida/evening-pick-4/',
                     'https://www.lotteryusa.com/florida/pick-4/'
                   ], label:'Evening' } }
   },
