@@ -85,6 +85,17 @@ function parseDateFromText(text){
   if (/\b(today|tonight|this (?:evening|afternoon|morning))\b/i.test(t)) {
     return dayjs();
   }
+ // --- Local (ET) YYYY-MM-DD (no UTC) ---
+function localDateISO(d = new Date()){
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const da= String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${da}`;
+}
+function fmtHuman(dISO){ // "Fri, Oct 24"
+  const d = new Date(dISO+'T12:00:00'); // middle of day to avoid tz edge
+  return d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+} 
 
   // Month-name format: "September 10, 2025" or "Sep 10"
   const m1 = t.match(/\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{1,2})(?:,\s*(\d{4}))?/i);
