@@ -452,7 +452,11 @@ async function combinedPair(stateKey){
   const dates = [mid3.date, mid4.date, eve3.date, eve4.date, n3?.date, n4?.date].filter(Boolean);
   const latest = dates.length ? dates.sort((a,b)=>a.valueOf()-b.valueOf()).pop() : null;
 
-  return { dateISO: (latest || dayjs()).format('YYYY-MM-DD'), midday, evening, night };
+  // Always emit NY time, even if server runs in UTC
+  const dateISO = latest
+    ? eastCoastDateISO(new Date(latest.valueOf()))
+    : eastCoastDateISO();
+  return { dateISO, midday, evening, night };
 }
 
 // API
@@ -464,7 +468,7 @@ app.get('/api/:state/latest', async (req,res)=>{
     res.status(200).json(data);
   }catch(e){
     console.log('[ERROR]', key, e?.response?.status || e.message);
-    res.status(200).json({ dateISO: dayjs().format('YYYY-MM-DD'), midday:null, evening:null, night:null });
+    res.status(200).json({ dateISO: eastCoastDateISO(), midday:null, evening:null, night:null });
   }
 });
 
