@@ -3,12 +3,6 @@ import cors from 'cors';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import dayjs from 'dayjs';
-import utc from 'dayjs/plugin/utc.js';
-import timezone from 'dayjs/plugin/timezone.js';
-dayjs.extend(utc);
-dayjs.extend(timezone);
-// Make all "current time" fallbacks Eastern Time, not UTC
-dayjs.tz.setDefault('America/New_York');
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -34,7 +28,6 @@ async function fetchHtml(url){
   return data;
 }
 
-
 // ── helpers to parse date strings we see on pages ──────────────────────────────
 // Extract "the first n-digit result" from the main results area (no label needed)
 function extractFirstInLatest($, n) {
@@ -53,41 +46,6 @@ function extractFirstInLatest($, n) {
   const bySpans = pickConsecutiveSingleDigitNodes($, $.root(), n);
   if (bySpans) return bySpans;
   return pickNDigitsFromTextSafe($, $.root(), n);
-}
-// Find the nearest small piece of text around a node that looks like a date.
-// Scans: the node itself, its children, prev/next siblings (up to 4), and up to 3 ancestors.
-function findNearbyDate($, $start) {
-  if (!$start || !$start.length) return null;
-
-  const seen = new Set();
-  const enqueue = node => { if (node && node.length) seen.add(node.get(0)); };
-
-  const queue = [];
-  const push = sel => $(sel).each((_, el) => queue.push($(el)));
-
-  // 1) The node itself + small descendants
-  queue.push($start);
-  push($start.find('small, .meta, .subtitle, .sub, p, span'));
-
-  // 2) A few siblings around it
-  let nxt = $start, prv = $start;
-  for (let i = 0; i < 4; i++) {
-    nxt = nxt.next();  if (nxt.length) { queue.push(nxt); push(nxt.find('small,p,span')); }
-    prv = prv.prev();  if (prv.length) { queue.push(prv); push(prv.find('small,p,span')); }
-  }
-
-  // 3) Up to 3 ancestors (and their small children)
-  let anc = $start.parent();
-  for (let i = 0; i < 3 && anc.length; i++, anc = anc.parent()) {
-    queue.push(anc); push(anc.find('small,p,span'));
-  }
-
-  for (const $node of queue) {
-    const text = $node.text();
-    const d = parseDateFromText(text);
-    if (d) return d;
-  }
-  return null;
 }
 
 // Accept "Day", "Daytime" for Day and just "Night" for night.
@@ -116,17 +74,17 @@ function findNearbyDate($, $start) {
    if (!best) return { digits: null, date: null };
    const d1 = pickConsecutiveSingleDigitNodes($, best, n);
    const d2 = d1 || pickNDigitsFromTextSafe($, best, n);
-   const date = findNearbyDate($, best) || null;
-  return d2 ? { digits: d2, date } : { digits: null, date: null };
+   const date = parseDateFromText(best.text()) || parseDateFromText($.root().text());
+   return d2 ? { digits: d2, date } : { digits: null, date: null };
  }
 function parseDateFromText(text){
-  const y = dayjs.tz(Date.now(), 'America/New_York').year();
+  const y = dayjs().year();
   const t = (text||'').replace(/\s+/g,' ');
 
-// Ignore "today/tonight" — only explicit dates count here
-if (/\b(today|tonight|this (?:evening|afternoon|morning))\b/i.test(t)) {
-  return null;
-}
+  // Fast-path: "today" / "tonight" → use current date
+  if (/\b(today|tonight|this (?:evening|afternoon|morning))\b/i.test(t)) {
+    return dayjs();
+  }
 
   // Month-name format: "September 10, 2025" or "Sep 10"
   const m1 = t.match(/\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{1,2})(?:,\s*(\d{4}))?/i);
@@ -135,7 +93,7 @@ if (/\b(today|tonight|this (?:evening|afternoon|morning))\b/i.test(t)) {
     const M = monthNames.findIndex(x => m1[1].toLowerCase().startsWith(x))+1;
     const D = parseInt(m1[2],10);
     const Y = m1[3]? parseInt(m1[3],10): y;
-    return dayjs.tz(`${Y}-${String(M).padStart(2,'0')}-${String(D).padStart(2,'0')}`, 'America/New_York');
+    return dayjs(`${Y}-${String(M).padStart(2,'0')}-${String(D).padStart(2,'0')}`);
   }
 
   // Numeric format: 9/10/2025 or 9/10
@@ -144,7 +102,7 @@ if (/\b(today|tonight|this (?:evening|afternoon|morning))\b/i.test(t)) {
     const M = parseInt(m2[1],10), D = parseInt(m2[2],10);
     let Y = m2[3]? parseInt(m2[3],10): y;
     if (Y<100) Y = 2000+Y;
-    return dayjs.tz(`${Y}-${String(M).padStart(2,'0')}-${String(D).padStart(2,'0')}`, 'America/New_York');
+    return dayjs(`${Y}-${String(M).padStart(2,'0')}-${String(D).padStart(2,'0')}`);
   }
   return null; // let caller default to "today" instead of scanning the whole section
 }
@@ -238,21 +196,14 @@ function extractByLabel($, label, n) {
   // 4) Prefer digit-by-digit nodes; fall back to safe text
   for (const $cand of candidates) {
     const d1 = pickConsecutiveSingleDigitNodes($, $cand, n);
-      if (d1) {
-    const d = findNearbyDate($, $cand) || findNearbyDate($, $labelEl) || null;
-    return { digits: d1, date: d };
-  }
+    if (d1) return { digits: d1, date: parseDateFromText($cand.text()) || parseDateFromText($labelEl.text()) };
     const d2 = pickNDigitsFromTextSafe($, $cand, n);
-    if (d2) {
-      const d = findNearbyDate($, $cand) || findNearbyDate($, $labelEl) || null;
-      return { digits: d2, date: d };
-    }
+    if (d2) return { digits: d2, date: parseDateFromText($cand.text()) || parseDateFromText($labelEl.text()) };
   }
 
   // 5) Last resort: use the label element itself
   const d3 = pickConsecutiveSingleDigitNodes($, $labelEl, n) || pickNDigitsFromTextSafe($, $labelEl, n);
-  const d  = findNearbyDate($, $labelEl) || null;
-  return { digits: d3, date: d };
+  return { digits: d3, date: parseDateFromText($labelEl.text()) };
 }
 // ── try a list of URLs; return {digits,date} without throwing ─────────────────
 async function tryUrls(urls, label, n, tag){
@@ -261,46 +212,44 @@ async function tryUrls(urls, label, n, tag){
       const html = await fetchHtml(u);
       const $    = cheerio.load(html);
 
+      // CT handling:
+      //  - dedicated draw pages (midday-3/4, night-3/4): the page itself implies the draw,
+      //    so there may be NO visible 'Midday'/'Night' label near the digits.
+      //    Use a label-free extractor that grabs the first P3/P4 block.
+      //  - generic play pages (play-3/4): use the row-by-label extractor.
       const isCT = /\/connecticut\//i.test(u);
-      const isCtDedicated =
-        /\/connecticut\/(midday|night)-[34]\//i.test(u) ||
-        (label === 'Night' && /\/connecticut\/play-[34]\//i.test(u)); // Night lives on play-3/4
-
-      const isGA = /\/georgia\//i.test(u);
-      // Dedicated GA pages: midday-3/4, cash-3/4-evening, cash-3/4 (night)
-      const isGaDedicated = /\/georgia\/(midday-[34]|cash-[34](?:-evening)?\/?)$/i.test(u);
-
-      const isPA = /\/pennsylvania\//i.test(u);
-      // Dedicated PA pages: midday-pick-3/4 and pick-3/4
-      const isPaDedicated = /\/pennsylvania\/(midday-pick-[34]|pick-[34]\/?)$/i.test(u);
-
-      let digits = null, date = null;
-
+      const isCtDedicated = /\/connecticut\/(midday|night)-[34]\//i.test(u) || (label === 'Night' && /\/connecticut\/play-[34]\//i.test(u)); // Night lives on play-3/4
+      let digits, date;
       if (isCT && isCtDedicated) {
-        // CT dedicated draw pages – numbers appear without an adjacent draw label
         digits = extractFirstInLatest($, n);
-        const $scope = $('section,main,article,.results,.c-results-card').first();
-        date = findNearbyDate($, $scope) || null;
+        date   = parseDateFromText($.root().text()) || dayjs();
       } else if (isCT) {
-        // CT generic pages – use label-aware row extraction
         ({ digits, date } = extractRowByLabel($, label, n));
-      } else if (isGA && isGaDedicated) {
-        // GA dedicated pages (midday-3/4, cash-3/4-evening, cash-3/4)
-        digits = extractFirstInLatest($, n);
-        const $scope = $('section,main,article,.results,.c-results-card').first();
-        date = findNearbyDate($, $scope) || null;
       } else {
-        // Generic case: look for a row near the label inside "Latest numbers"
         ({ digits, date } = extractByLabel($, label, n));
       }
-
       if (digits) return { digits, date };
-
     }catch(e){
       console.log(`[WARN] ${tag} ${u} -> ${e?.response?.status || e.message}`);
     }
   }
   return {digits:null, date:null};
+}
+
+async function fetchGA(){
+  const r = await fetch(api('/api/ga/latest'), { cache: 'no-store' });
+  if(!r.ok) throw new Error('GA bridge failed '+r.status);
+  return await r.json(); // { dateISO, midday, evening }
+}
+async function syncGA(){
+  try{
+    const ga = await fetchGA();
+    if(ga.midday)  Store.setById('usa/ga/Midday',  ga.midday,  ga.dateISO);
+    if(ga.evening) Store.setById('usa/ga/Evening', ga.evening, ga.dateISO);
+    maybeAdvanceSelectedDate(ga.dateISO);
+    buildPublicBoard();
+    console.info('GA updated', ga);
+  }catch(e){ console.warn('GA sync failed', e); }
 }
 
 // ── URL map with robust fallbacks: specific page first, then generic page ─────
@@ -392,117 +341,55 @@ const U = {
                   ], label:'Evening' } }
   },
  ga: {
-  p3: {
-    mid: { urls: [
-      'https://www.lotteryusa.com/georgia/midday-3/',
-      'https://www.lotteryusa.com/georgia/'
-    ], label: 'Midday' },
-    eve: { urls: [
-      'https://www.lotteryusa.com/georgia/cash-3-evening/',
-      'https://www.lotteryusa.com/georgia/'
-    ], label: 'Evening' },
-    ngt: { urls: [
-      'https://www.lotteryusa.com/georgia/cash-3/',
-      'https://www.lotteryusa.com/georgia/'
-    ], label: 'Night' }
-  },
-  p4: {
-    mid: { urls: [
-      'https://www.lotteryusa.com/georgia/midday-4/',
-      'https://www.lotteryusa.com/georgia/'
-    ], label: 'Midday' },
-    eve: { urls: [
-      'https://www.lotteryusa.com/georgia/cash-4-evening/',
-      'https://www.lotteryusa.com/georgia/'
-    ], label: 'Evening' },
-    ngt: { urls: [
-      'https://www.lotteryusa.com/georgia/cash-4/',
-      'https://www.lotteryusa.com/georgia/'
-    ], label: 'Night' }
-  }
- },
-pa: {
-  p3: {
-    mid: { urls: [
-      'https://www.lotteryusa.com/pennsylvania/midday-pick-3/',
-      'https://www.lotteryusa.com/pennsylvania/'
-    ], label: 'Day' },        // PA calls this “Day”
-    eve: { urls: [
-      'https://www.lotteryusa.com/pennsylvania/pick-3/',
-      'https://www.lotteryusa.com/pennsylvania/'
-    ], label: 'Evening' }
-  },
-  p4: {
-    mid: { urls: [
-      'https://www.lotteryusa.com/pennsylvania/midday-pick-4/',
-      'https://www.lotteryusa.com/pennsylvania/'
-    ], label: 'Day' },
-    eve: { urls: [
-      'https://www.lotteryusa.com/pennsylvania/pick-4/',
-      'https://www.lotteryusa.com/pennsylvania/'
-    ], label: 'Evening' }
-  }
-},
-  
+    p3: {
+      mid: { urls: [
+        'https://www.lotteryusa.com/georgia/midday-pick-3/',
+        'https://www.lotteryusa.com/georgia/pick-3/'
+      ], label: 'Midday' },
+      eve: { urls: [
+        'https://www.lotteryusa.com/georgia/evening-pick-3/',
+        'https://www.lotteryusa.com/georgia/pick-3/'
+      ], label: 'Evening' }
+    },
+    p4: {
+      mid: { urls: [
+        'https://www.lotteryusa.com/georgia/midday-pick-4/',
+        'https://www.lotteryusa.com/georgia/pick-4/'
+      ], label: 'Midday' },
+      eve: { urls: [
+        'https://www.lotteryusa.com/georgia/evening-pick-4/',
+        'https://www.lotteryusa.com/georgia/pick-4/'
+      ], label: 'Evening' }
+    }
+  },  
 };
 
 // ── build "p3-p4" per draw and a trustworthy dateISO ──────────────────────────
 async function combinedPair(stateKey){
-  const S = U[stateKey];
-
-  const jobs = [
+  const S=U[stateKey];
+  const [mid3, eve3, mid4, eve4] = await Promise.all([
     tryUrls(S.p3.mid.urls, S.p3.mid.label, 3, `${stateKey}.p3.mid`),
     tryUrls(S.p3.eve.urls, S.p3.eve.label, 3, `${stateKey}.p3.eve`),
     tryUrls(S.p4.mid.urls, S.p4.mid.label, 4, `${stateKey}.p4.mid`),
     tryUrls(S.p4.eve.urls, S.p4.eve.label, 4, `${stateKey}.p4.eve`)
-  ];
+  ]);
 
-  // Optional Night
-  let hasNight = S.p3.ngt && S.p4.ngt;
-  if (hasNight) {
-    jobs.push(
-      tryUrls(S.p3.ngt.urls, S.p3.ngt.label, 3, `${stateKey}.p3.ngt`),
-      tryUrls(S.p4.ngt.urls, S.p4.ngt.label, 4, `${stateKey}.p4.ngt`)
-    );
-  }
+ const ok = (s, n) => typeof s === 'string' && /^\d+$/.test(s) && s.length === n;
+ const m3 = ok(mid3.digits, 3) ? mid3.digits : null;
+ const m4 = ok(mid4.digits, 4) ? mid4.digits : null;
+ const e3 = ok(eve3.digits, 3) ? eve3.digits : null;
+ const e4 = ok(eve4.digits, 4) ? eve4.digits : null;
+ const midday  = (m3 && m4) ? `${m3}-${m4}` : null;
+ const evening = (e3 && e4) ? `${e3}-${e4}` : null;
 
-  const results = await Promise.all(jobs);
-
-  const ok = (s, n) => typeof s === 'string' && /^\d+$/.test(s) && s.length === n;
-
-  const [mid3, eve3, mid4, eve4, n3, n4] =
-    hasNight ? results : [...results, {digits:null,date:null}, {digits:null,date:null}];
-
-  const m3 = ok(mid3.digits, 3) ? mid3.digits : null;
-  const m4 = ok(mid4.digits, 4) ? mid4.digits : null;
-  const e3 = ok(eve3.digits, 3) ? eve3.digits : null;
-  const e4 = ok(eve4.digits, 4) ? eve4.digits : null;
-  const nn3 = ok(n3.digits, 3) ? n3.digits : null;
-  const nn4 = ok(n4.digits, 4) ? n4.digits : null;
-
-  const midday  = (m3  && m4)  ? `${m3}-${m4}`   : null;
-  const evening = (e3  && e4)  ? `${e3}-${e4}`   : null;
-  const night   = (nn3 && nn4) ? `${nn3}-${nn4}` : null;
-
-  // choose dates only from the halves we actually used
-  const pickLatest = (a, b) => {
-    if (a && b) return a.valueOf() >= b.valueOf() ? a : b;
-    return a || b || null;
-  };
-
-  const middayDate  = midday  ? pickLatest(mid3.date, mid4.date) : null;
-  const eveningDate = evening ? pickLatest(eve3.date, eve4.date) : null;
-  const nightDate   = night   ? pickLatest(n3?.date,  n4?.date)  : null;
-
-  const latest = [middayDate, eveningDate, nightDate].filter(Boolean)
-    .sort((a,b)=>a.valueOf()-b.valueOf())
-    .pop() || null;
+  // prefer the freshest non-null date we observed near either label
+  const dates = [mid3.date, mid4.date, eve3.date, eve4.date].filter(Boolean);
+  const latest = dates.length ? dates.sort((a,b)=>a.valueOf()-b.valueOf()).pop() : null;
 
   return {
-    dateISO: (latest ? latest.tz('America/New_York')
-                     : dayjs.tz(Date.now(), 'America/New_York')
-            ).format('YYYY-MM-DD'),
-    midday, evening, night
+    dateISO: (latest || dayjs()).format('YYYY-MM-DD'),
+    midday,
+    evening
   };
 }
 
@@ -515,10 +402,7 @@ app.get('/api/:state/latest', async (req,res)=>{
     res.status(200).json(data);
   }catch(e){
     console.log('[ERROR]', key, e?.response?.status || e.message);
-    res.status(200).json({
-  dateISO: dayjs.tz(Date.now(), 'America/New_York').format('YYYY-MM-DD'),
-  midday:null, evening:null, night:null
-});
+    res.status(200).json({ dateISO: dayjs().format('YYYY-MM-DD'), midday:null, evening:null });
   }
 });
 
