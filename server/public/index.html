@@ -80,6 +80,13 @@
     textarea { width:100%; min-height:160px; resize:vertical; background:var(--card-3); border:1px solid rgba(255,255,255,.1); color:var(--text); border-radius:12px; padding:10px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
     .hidden { display:none; }
     .right { margin-left:auto; }
+    /* --- Date stamp under result --- */
+    .date-stamp{
+      font-size: 11px;
+      color: var(--muted);
+      opacity: .9;
+      margin-top: -2px;
+}
   </style>
 </head>
 <body data-theme="dark">
@@ -172,6 +179,8 @@
         <input type="file" id="logoUpload" multiple accept="image/*" />
         <div id="logosList" class="mb16"></div>
       </section>
+
+      
 
       <!-- VISIBILITY TAB -->
       <section id="tab-visibility" class="hidden">
@@ -346,6 +355,7 @@ function maybeAdvanceSelectedDate(iso){
           </div>
           <div class="card-body">
             <div class="result-big" data-res-for="${item.id}">${res?res:'—'}</div>
+            <div class="date-stamp" data-date-for="${item.id}">—</div>
             <div class="meta"><span>Sorteo: ${item.drawTime}</span><span>Cierre: ${item.closeTime}</span></div>
           </div>
           <div class="card-footer">
