@@ -237,14 +237,14 @@ async function tryUrls(urls, label, n, tag){
       if (isCT && isCtDedicated) {
         // CT dedicated draw pages – numbers appear without an adjacent draw label
         digits = extractFirstInLatest($, n);
-        date = parseDateFromText($.root().text()) || dayjs.tz(Date.now(), 'America/New_York');
+        date   = parseDateFromText($.root().text()) || null;   // no forced “now”
       } else if (isCT) {
         // CT generic pages – use label-aware row extraction
         ({ digits, date } = extractRowByLabel($, label, n));
       } else if (isGA && isGaDedicated) {
         // GA dedicated pages (midday-3/4, cash-3/4-evening, cash-3/4)
         digits = extractFirstInLatest($, n);
-        date = parseDateFromText($.root().text()) || dayjs.tz(Date.now(), 'America/New_York');
+        date   = parseDateFromText($.root().text()) || null;   // no forced “now”
       } else {
         // Generic case: look for a row near the label inside "Latest numbers"
         ({ digits, date } = extractByLabel($, label, n));
@@ -440,13 +440,26 @@ async function combinedPair(stateKey){
   const evening = (e3  && e4)  ? `${e3}-${e4}`   : null;
   const night   = (nn3 && nn4) ? `${nn3}-${nn4}` : null;
 
-  const dates = [mid3.date, mid4.date, eve3.date, eve4.date, n3?.date, n4?.date].filter(Boolean);
-  const latest = dates.length ? dates.sort((a,b)=>a.valueOf()-b.valueOf()).pop() : null;
+  // choose dates only from the halves we actually used
+  const pickLatest = (a, b) => {
+    if (a && b) return a.valueOf() >= b.valueOf() ? a : b;
+    return a || b || null;
+  };
+
+  const middayDate  = midday  ? pickLatest(mid3.date, mid4.date) : null;
+  const eveningDate = evening ? pickLatest(eve3.date, eve4.date) : null;
+  const nightDate   = night   ? pickLatest(n3?.date,  n4?.date)  : null;
+
+  const latest = [middayDate, eveningDate, nightDate].filter(Boolean)
+    .sort((a,b)=>a.valueOf()-b.valueOf())
+    .pop() || null;
 
   return {
-  dateISO: (latest ? latest.tz('America/New_York') : dayjs.tz(Date.now(), 'America/New_York')).format('YYYY-MM-DD'),
-  midday, evening, night
-};
+    dateISO: (latest ? latest.tz('America/New_York')
+                     : dayjs.tz(Date.now(), 'America/New_York')
+            ).format('YYYY-MM-DD'),
+    midday, evening, night
+  };
 }
 
 // API
