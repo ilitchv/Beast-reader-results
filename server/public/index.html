@@ -220,6 +220,19 @@
     function writeJSON(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
     function resultsKey(dateStr) { return LS.RESULTS_PREFIX + dateStr; }
     function ocrKey(dateStr) { return LS.OCR_PREFIX + dateStr; }
+    // --- Local (ET) YYYY-MM-DD (no UTC drift to "tomorrow") ---
+    function localDateISO(d = new Date()){
+      const y = d.getFullYear();
+      const m = String(d.getMonth()+1).padStart(2,'0');
+      const da= String(d.getDate()).padStart(2,'0');
+      return `${y}-${m}-${da}`;
+    }
+
+    // "Fri, Oct 24"
+    function fmtHuman(dISO){
+      const d = new Date(dISO + 'T12:00:00'); // midday avoids TZ edges
+      return d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+    }
 
     /**********************************************************
      * Catalog seed (array form) — based on v8.3.x
@@ -370,19 +383,18 @@ function maybeAdvanceSelectedDate(iso){
           </div>`;
         $(where).appendChild(el);
         $('[data-hist]', el).onclick = () => openHistory(item.id);
+        const ts = Store.getLastTs(item.id);
+        const dateNode = $('[data-date-for]', el);
+          if (dateNode){
+            if (ts){
+               const dISO = ts.slice(0,10); // support "YYYY-MM-DD" or "YYYY-MM-DDTHH:mm"
+               dateNode.textContent = 'Updated: ' + fmtHuman(dISO);
+              dateNode.dataset.iso = dISO; // optional: keep raw on the node
+            } else {
+              dateNode.textContent = 'Updated: —';
+            }
+          }
       }
-      const ts = Store.getLastTs(item.id);
-const dateNode = $('[data-date-for]', el);
-if (dateNode){
-  if (ts){
-    const dISO = ts.slice(0,10); // support "YYYY-MM-DD" or "YYYY-MM-DDTHH:mm"
-    dateNode.textContent = 'Updated: ' + fmtHuman(dISO);
-    dateNode.dataset.iso = dISO; // optional: keep raw on the node
-  } else {
-    dateNode.textContent = 'Updated: —';
-  }
-}
-
     }
 
     // Minimal history view (uses legacy history storage so it works with existing data)
