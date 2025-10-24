@@ -203,14 +203,25 @@ function extractByLabel($, label, n) {
   // 4) Prefer digit-by-digit nodes; fall back to safe text
   for (const $cand of candidates) {
     const d1 = pickConsecutiveSingleDigitNodes($, $cand, n);
-    if (d1) return { digits: d1, date: parseDateFromText($cand.text()) || parseDateFromText($labelEl.text()) };
+      if (d1) {
+    const d = parseDateFromText($cand.text()) ||
+              parseDateFromText($labelEl.text()) ||
+              parseDateFromText($.root().text());    // NEW: page-wide fallback
+    return { digits: d1, date: d };
+  }
     const d2 = pickNDigitsFromTextSafe($, $cand, n);
-    if (d2) return { digits: d2, date: parseDateFromText($cand.text()) || parseDateFromText($labelEl.text()) };
+    if (d2) {
+      const d = parseDateFromText($cand.text()) ||
+                parseDateFromText($labelEl.text()) ||
+                parseDateFromText($.root().text());    // NEW: page-wide fallback
+      return { digits: d2, date: d };
+    }
   }
 
   // 5) Last resort: use the label element itself
   const d3 = pickConsecutiveSingleDigitNodes($, $labelEl, n) || pickNDigitsFromTextSafe($, $labelEl, n);
-  return { digits: d3, date: parseDateFromText($labelEl.text()) };
+  const d  = parseDateFromText($labelEl.text()) || parseDateFromText($.root().text()); // NEW fallback
+  return { digits: d3, date: d };
 }
 // ── try a list of URLs; return {digits,date} without throwing ─────────────────
 async function tryUrls(urls, label, n, tag){
