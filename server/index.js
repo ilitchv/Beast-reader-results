@@ -48,6 +48,13 @@ function extractFirstInLatest($, n) {
   return pickNDigitsFromTextSafe($, $.root(), n);
 }
 
+function eastCoastDateISO(d = new Date()){
+  // Format “YYYY-MM-DD” but in America/New_York
+  const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' });
+  // en-CA gives YYYY-MM-DD
+  return fmt.format(d);
+}
+
 // Accept "Day", "Daytime" for Day and just "Night" for night.
  const CT_LABEL_RE = {
   Day: /(day(?:time)?)/i,
