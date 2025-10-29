@@ -501,9 +501,16 @@ function maybeAdvanceSelectedDate(iso){
     async function syncNY(){
       try{
         const ny = await fetchNY();
-        if(ny.midday)  Store.setById('usa/ny/Midday',  ny.midday,  ny.dateISO);
-        if(ny.evening) Store.setById('usa/ny/Evening', ny.evening, ny.dateISO);
-        maybeAdvanceSelectedDate(ny.dateISO);
+        if (ny.midday) {
+   const dMid = (ny.dates && ny.dates.midday) || ny.dateISO;
+   Store.setById('usa/ny/Midday', ny.midday, dMid);
+ }
+ if (ny.evening) {
+   const dEve = (ny.dates && ny.dates.evening) || ny.dateISO;
+   Store.setById('usa/ny/Evening', ny.evening, dEve);
+ }
+ // nudge selected date forward only if the API emitted a concrete date
+ maybeAdvanceSelectedDate(ny.dates?.evening || ny.dates?.midday || ny.dateISO);
         buildPublicBoard();
         console.info('NY updated', ny);
       }catch(err){ console.warn('NY sync failed', err); }
@@ -534,9 +541,16 @@ async function fetchCT(){
 async function syncCT(){
   try{
     const ct = await fetchCT();
-    if(ct.midday)  Store.setById('usa/ct/Day',   ct.midday,  ct.dateISO);
-    if(ct.evening) Store.setById('usa/ct/Night', ct.evening, ct.dateISO);
-    maybeAdvanceSelectedDate(ct.dateISO);
+    if (ct.midday) {
+   const dDay = (ct.dates && ct.dates.midday) || ct.dateISO;
+   Store.setById('usa/ct/Day',   ct.midday,  dDay);
+ }
+ if (ct.evening) {
+   const dNgt = (ct.dates && ct.dates.evening) || ct.dateISO;
+   Store.setById('usa/ct/Night', ct.evening, dNgt);
+ }
+ maybeAdvanceSelectedDate(ct.dates?.evening || ct.dates?.midday || ct.dateISO);
+
     buildPublicBoard();
     console.info('CT updated', ct);
   }catch(e){ console.warn('CT sync failed', e); }
@@ -566,10 +580,19 @@ async function fetchGA(){
 async function syncGA(){
   try{
     const ga = await fetchGA();
-    if(ga.midday)  Store.setById('usa/ga/Midday',  ga.midday,  ga.dateISO);
-    if(ga.evening) Store.setById('usa/ga/Evening', ga.evening, ga.dateISO);
-    if(ga.night)   Store.setById('usa/ga/Night',   ga.night,   ga.dateISO);
-    maybeAdvanceSelectedDate(ga.dateISO);
+    if (ga.midday) {
+   const dMid = (ga.dates && ga.dates.midday) || ga.dateISO;
+   Store.setById('usa/ga/Midday',  ga.midday,  dMid);
+ }
+ if (ga.evening) {
+   const dEve = (ga.dates && ga.dates.evening) || ga.dateISO;
+   Store.setById('usa/ga/Evening', ga.evening, dEve);
+ }
+ if (ga.night) {
+   const dNgt = (ga.dates && ga.dates.night) || ga.dateISO;
+   Store.setById('usa/ga/Night',   ga.night,   dNgt);
+ }
+ maybeAdvanceSelectedDate(ga.dates?.night || ga.dates?.evening || ga.dates?.midday || ga.dateISO);
     buildPublicBoard();
     console.info('GA updated', ga);
   }catch(e){ console.warn('GA sync failed', e); }
