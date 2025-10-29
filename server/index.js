@@ -430,6 +430,16 @@ async function combinedPair(stateKey){
       tryUrls(S.p4.ngt.urls, S.p4.ngt.label, 4, `${stateKey}.p4.ngt`)
     );
   }
+  function eastCoastISOFromDayjs(dj){
+  return dj ? eastCoastDateISO(new Date(dj.valueOf())) : null;
+}
+function maxISO(...djs){
+  const arr = djs.filter(Boolean);
+  if (!arr.length) return null;
+  const latest = arr.sort((a,b)=>a.valueOf()-b.valueOf()).pop();
+  return eastCoastISOFromDayjs(latest);
+}
+
 
   const results = await Promise.all(jobs);
 
@@ -449,14 +459,25 @@ async function combinedPair(stateKey){
   const evening = (e3  && e4)  ? `${e3}-${e4}`   : null;
   const night   = (nn3 && nn4) ? `${nn3}-${nn4}` : null;
 
-  const dates = [mid3.date, mid4.date, eve3.date, eve4.date, n3?.date, n4?.date].filter(Boolean);
-  const latest = dates.length ? dates.sort((a,b)=>a.valueOf()-b.valueOf()).pop() : null;
+  // Per-draw dates (only if the pair exists)
+ const dateISO_midday  = (m3 && m4)  ? maxISO(mid3.date, mid4.date)     : null;
+ const dateISO_evening = (e3 && e4)  ? maxISO(eve3.date, eve4.date)     : null;
+ const dateISO_night   = (nn3 && nn4)? maxISO(n3?.date,  n4?.date)      : null;
 
-  // Always emit NY time, even if server runs in UTC
-  const dateISO = latest
-    ? eastCoastDateISO(new Date(latest.valueOf()))
-    : eastCoastDateISO();
-  return { dateISO, midday, evening, night };
+ // Back-compat: overall latest across any draws we found
+ const dateISO = maxISO(
+   mid3.date, mid4.date, eve3.date, eve4.date, n3?.date, n4?.date
+ ) || eastCoastDateISO(); // overall is only used by old clients
+
+ return {
+   dateISO,               // back-compat
+   dates: {
+     midday:  dateISO_midday,
+     evening: dateISO_evening,
+     night:   dateISO_night
+   },
+   midday, evening, night
+ };
 }
 
 // API
