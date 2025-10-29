@@ -248,7 +248,7 @@ async function tryUrls(urls, label, n, tag){
       if (isCT && isCtDedicated) {
         // CT dedicated draw pages – numbers appear without an adjacent draw label
         digits = extractFirstInLatest($, n);
-        date   = parseDateFromText($.root().text()) || dayjs();
+        date   = parseDateFromText($.root().text()) || null;
       } else if (isCT) {
         // CT generic pages – use label-aware row extraction
         ({ digits, date } = extractRowByLabel($, label, n));
