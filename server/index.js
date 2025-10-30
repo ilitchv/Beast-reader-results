@@ -81,7 +81,7 @@ function eastCoastDateISO(d = new Date()){
    if (!best) return { digits: null, date: null };
    const d1 = pickConsecutiveSingleDigitNodes($, best, n);
    const d2 = d1 || pickNDigitsFromTextSafe($, best, n);
-   const date = parseDateFromText(best.text()) || parseDateFromText($.root().text());
+   const date = parseDateFromText(best.text());
    return d2 ? { digits: d2, date } : { digits: null, date: null };
  }
 function parseDateFromText(text){
@@ -89,9 +89,8 @@ function parseDateFromText(text){
   const t = (text||'').replace(/\s+/g,' ');
 
   // Fast-path: "today" / "tonight" → use current date
-  if (/\b(today|tonight|this (?:evening|afternoon|morning))\b/i.test(t)) {
-    return dayjs();
-  }
+  // Do NOT treat “today/tonight/this evening” as an explicit date.
+  // If we can’t parse a calendar date below, return null and let caller decide.
  // --- Local (ET) YYYY-MM-DD (no UTC) ---
 function localDateISO(d = new Date()){
   const y = d.getFullYear();
@@ -248,7 +247,7 @@ async function tryUrls(urls, label, n, tag){
       if (isCT && isCtDedicated) {
         // CT dedicated draw pages – numbers appear without an adjacent draw label
         digits = extractFirstInLatest($, n);
-        date   = parseDateFromText($.root().text()) || null;
+        date   = parseDateFromText($.root().text()); // may be null; that’s OK
       } else if (isCT) {
         // CT generic pages – use label-aware row extraction
         ({ digits, date } = extractRowByLabel($, label, n));
