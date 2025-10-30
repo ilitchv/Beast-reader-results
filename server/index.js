@@ -252,11 +252,11 @@ async function tryUrls(urls, label, n, tag){
       } else if (isCT) {
         // CT generic pages – use label-aware row extraction
         ({ digits, date } = extractRowByLabel($, label, n));
-      } else if (isGA && isGaDedicated) {
-        // GA dedicated pages (midday-3/4, cash-3/4-evening, cash-3/4)
-        digits = extractFirstInLatest($, n);
-        date   = parseDateFromText($.root().text()) || dayjs();
-      } else {
+     } else if (isGA && isGaDedicated) {
+       // GA dedicated pages (midday-3/4, cash-3/4-evening, cash-3/4)
+       digits = extractFirstInLatest($, n);
+       date   = parseDateFromText($.root().text()) || null;
+        } else {
         // Generic case: look for a row near the label inside "Latest numbers"
         ({ digits, date } = extractByLabel($, label, n));
       }
