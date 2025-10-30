@@ -320,39 +320,61 @@ function maybeAdvanceSelectedDate(iso){
       },
 
       // Write to both schemas
-      setById(id, value, iso){
-        const incomingISO  = iso || (localDateISO() + 'T00:00:00');
-        const incomingDate = incomingISO.slice(0,10);
+     setById(id, value, iso){
+  const incomingISO  = iso || (localDateISO() + 'T00:00:00');
+  const incomingDate = incomingISO.slice(0,10);
 
-        const [section, state, draw] = id.split('/');
-        if(section && state && draw){
-          const legacy = readJSON(LS.LEGACY_RESULTS, {});
-          legacy[section] = legacy[section] || {};
-          legacy[section][state] = legacy[section][state] || {};
-          const prev = legacy[section][state][draw];
-    // If value DID NOT change, keep the previous timestamp and DO NOT create a new-day snapshot.
-            if  (prev && prev.value === value) {
-              legacy[section][state][draw] = { value: prev.value, ts: prev.ts };
-              writeJSON(LS.LEGACY_RESULTS, legacy);
-              return; // ← stop here: no new snapshot, no ts bump
-          }
-          // Value changed → record with the provided scrape date
-         legacy[section][state][draw] = { value, ts: incomingISO };
-          writeJSON(LS.LEGACY_RESULTS, legacy);
-          // Append to legacy history
-          const HK = 'br_history_v1';
-          const hist = readJSON(HK, {});
-          const key = `${section}/${state}/${draw}`;
-          hist[key] = hist[key] || [];
-          const last = hist[key][hist[key].length-1];
-          if(!last || last.value !== value){hist[key].push({ value, ts: incomingISO }); if(hist[key].length>100) hist[key].shift(); }
+  const [section, state, draw] = id.split('/');
+  if(section && state && draw){
+    const legacy = readJSON(LS.LEGACY_RESULTS, {});
+    legacy[section] = legacy[section] || {};
+    legacy[section][state] = legacy[section][state] || {};
+    const prev = legacy[section][state][draw];
+
+    // If the value DID NOT change, do NOT make a new snapshot or bump "today".
+    if (prev && prev.value === value) {
+      // --- Reconciliation: if we previously saved a later/incorrect ts,
+      // and API now provides an earlier/correct per-draw date, fix it.
+      if (iso && prev.ts && prev.ts.slice(0,10) !== incomingISO.slice(0,10)) {
+        // Prefer the incoming (authoritative) ISO date from the API
+        legacy[section][state][draw] = { value: prev.value, ts: incomingISO };
+        writeJSON(LS.LEGACY_RESULTS, legacy);
+
+        // Also fix the last history entry's ts if it matches this value
+        const HK = 'br_history_v1';
+        const hist = readJSON(HK, {});
+        const key = `${section}/${state}/${draw}`;
+        const last = hist[key]?.[hist[key].length-1];
+        if (last && last.value === value) {
+          last.ts = incomingISO;
           writeJSON(HK, hist);
         }
-         // NEW schema snapshot only when value changed
-    const obj = readJSON(resultsKey(incomingDate), {});
-    obj[id] = value;
-    writeJSON(resultsKey(incomingDate), obj);
       }
+      return; // keep existing snapshots; no "today" bump
+    }
+
+    // Value CHANGED → record with the provided scrape date
+    legacy[section][state][draw] = { value, ts: incomingISO };
+    writeJSON(LS.LEGACY_RESULTS, legacy);
+
+    // Append to legacy history (only when value changed)
+    const HK = 'br_history_v1';
+    const hist = readJSON(HK, {});
+    const key = `${section}/${state}/${draw}`;
+    hist[key] = hist[key] || [];
+    const last = hist[key][hist[key].length-1];
+    if(!last || last.value !== value){
+      hist[key].push({ value, ts: incomingISO });
+      if(hist[key].length>100) hist[key].shift();
+    }
+    writeJSON(HK, hist);
+  }
+
+  // NEW schema snapshot only when value changed
+  const obj = readJSON(resultsKey(incomingDate), {});
+  obj[id] = value;
+  writeJSON(resultsKey(incomingDate), obj);
+}
     };
 
     /**********************************************************
