@@ -321,18 +321,23 @@ function maybeAdvanceSelectedDate(iso){
 
       // Write to both schemas
       setById(id, value, iso){
-        const date = (iso || (localDateISO() + 'T00:00:00')).slice(0,10);
-        // new
-        const obj = readJSON(resultsKey(date), {});
-        obj[id] = value;
-        writeJSON(resultsKey(date), obj);
-        // legacy
+        const incomingISO  = iso || (localDateISO() + 'T00:00:00');
+        const incomingDate = incomingISO.slice(0,10);
+
         const [section, state, draw] = id.split('/');
         if(section && state && draw){
           const legacy = readJSON(LS.LEGACY_RESULTS, {});
           legacy[section] = legacy[section] || {};
           legacy[section][state] = legacy[section][state] || {};
-          legacy[section][state][draw] = { value, ts: iso || (localDateISO() + 'T00:00:00') };
+          const prev = legacy[section][state][draw];
+    // If value DID NOT change, keep the previous timestamp and DO NOT create a new-day snapshot.
+            if  (prev && prev.value === value) {
+              legacy[section][state][draw] = { value: prev.value, ts: prev.ts };
+              writeJSON(LS.LEGACY_RESULTS, legacy);
+              return; // ← stop here: no new snapshot, no ts bump
+          }
+          // Value changed → record with the provided scrape date
+         legacy[section][state][draw] = { value, ts: incomingISO };
           writeJSON(LS.LEGACY_RESULTS, legacy);
           // Append to legacy history
           const HK = 'br_history_v1';
@@ -340,9 +345,13 @@ function maybeAdvanceSelectedDate(iso){
           const key = `${section}/${state}/${draw}`;
           hist[key] = hist[key] || [];
           const last = hist[key][hist[key].length-1];
-          if(!last || last.value !== value){ hist[key].push({ value, ts: iso || (localDateISO() + 'T00:00:00') }); if(hist[key].length>100) hist[key].shift(); }
+          if(!last || last.value !== value){hist[key].push({ value, ts: incomingISO }); if(hist[key].length>100) hist[key].shift(); }
           writeJSON(HK, hist);
         }
+         // NEW schema snapshot only when value changed
+    const obj = readJSON(resultsKey(incomingDate), {});
+    obj[id] = value;
+    writeJSON(resultsKey(incomingDate), obj);
       }
     };
 
@@ -524,9 +533,9 @@ function maybeAdvanceSelectedDate(iso){
 async function syncNJ(){
   try{
     const nj = await fetchNJ();
-    if(nj.midday)  Store.setById('usa/nj/Midday',  nj.midday,  nj.dateISO);
-    if(nj.evening) Store.setById('usa/nj/Evening', nj.evening, nj.dateISO);
-    maybeAdvanceSelectedDate(nj.dateISO);
+    if (nj.midday)  Store.setById('usa/nj/Midday',  nj.midday,  (nj.dates && nj.dates.midday)  || nj.dateISO);
+    if (nj.evening) Store.setById('usa/nj/Evening', nj.evening, (nj.dates && nj.dates.evening) || nj.dateISO);
+    maybeAdvanceSelectedDate(nj.dates?.evening || nj.dates?.midday || nj.dateISO);
     buildPublicBoard();
     console.info('NJ updated', nj);
   }catch(e){ console.warn('NJ sync failed', e); }
@@ -565,9 +574,9 @@ async function fetchFL(){
 async function syncFL(){
   try{
     const fl = await fetchFL();
-    if(fl.midday)  Store.setById('usa/fl/Midday',  fl.midday,  fl.dateISO);
-    if(fl.evening) Store.setById('usa/fl/Evening', fl.evening, fl.dateISO);
-    maybeAdvanceSelectedDate(fl.dateISO);
+    if (fl.midday)  Store.setById('usa/fl/Midday',  fl.midday,  (fl.dates && fl.dates.midday)  || fl.dateISO);
+    if (fl.evening) Store.setById('usa/fl/Evening', fl.evening, (fl.dates && fl.dates.evening) || fl.dateISO);
+    maybeAdvanceSelectedDate(fl.dates?.evening || fl.dates?.midday || fl.dateISO);
     buildPublicBoard();
     console.info('FL updated', fl);
   }catch(e){ console.warn('FL sync failed', e); }
@@ -606,9 +615,9 @@ async function fetchPA(){
 async function syncPA(){
   try{
     const pa = await fetchPA();
-    if(pa.midday)  Store.setById('usa/pa/Day',     pa.midday,  pa.dateISO);
-    if(pa.evening) Store.setById('usa/pa/Evening', pa.evening, pa.dateISO);
-    maybeAdvanceSelectedDate(pa.dateISO);
+    if (pa.midday)  Store.setById('usa/pa/Day',     pa.midday,  (pa.dates && pa.dates.midday)  || pa.dateISO);
+    if (pa.evening) Store.setById('usa/pa/Evening', pa.evening, (pa.dates && pa.dates.evening) || pa.dateISO);
+    maybeAdvanceSelectedDate(pa.dates?.evening || pa.dates?.midday || pa.dateISO);
     buildPublicBoard();
     console.info('PA updated', pa);
   }catch(e){ console.warn('PA sync failed', e); }
