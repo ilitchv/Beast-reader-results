@@ -430,8 +430,12 @@ async function combinedPair(stateKey){
     );
   }
   // Treat parsed page dates as calendar days, not instants.
+ // Keep calendar days as-is, but never allow a date *after* today's NY date.
  function eastCoastISOFromDayjs(dj){
-   return dj ? dj.format('YYYY-MM-DD') : null;
+   if (!dj) return null;
+   const todayNY = dayjs(eastCoastDateISO());     // "YYYY-MM-DD" in America/New_York
+   return dj.isAfter(todayNY) ? todayNY.format('YYYY-MM-DD')
+                              : dj.format('YYYY-MM-DD');
  }
 function maxISO(...djs){
   const arr = djs.filter(Boolean);
