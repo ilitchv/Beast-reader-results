@@ -429,9 +429,10 @@ async function combinedPair(stateKey){
       tryUrls(S.p4.ngt.urls, S.p4.ngt.label, 4, `${stateKey}.p4.ngt`)
     );
   }
-  function eastCoastISOFromDayjs(dj){
-  return dj ? eastCoastDateISO(new Date(dj.valueOf())) : null;
-}
+  // Treat parsed page dates as calendar days, not instants.
+ function eastCoastISOFromDayjs(dj){
+   return dj ? dj.format('YYYY-MM-DD') : null;
+ }
 function maxISO(...djs){
   const arr = djs.filter(Boolean);
   if (!arr.length) return null;
