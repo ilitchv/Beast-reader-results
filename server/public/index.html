@@ -319,6 +319,13 @@ function maybeAdvanceSelectedDate(iso){
         return legacy?.[section]?.[state]?.[draw]?.ts || null;
       },
 
+      getLastRecord(id){
+        const [section, state, draw] = id.split('/');
+        const legacy = readJSON(LS.LEGACY_RESULTS, {});
+        const rec = legacy?.[section]?.[state]?.[draw] || null;
+        return (rec && rec.value) ? { value: rec.value, ts: rec.ts } : null;
+      },
+
       // Write to both schemas
      setById(id, value, iso){
   const incomingISO  = iso || (localDateISO() + 'T00:00:00');
@@ -394,7 +401,8 @@ function maybeAdvanceSelectedDate(iso){
       for(const item of catalog){
         if(!vis[item.id]) continue;
         const where = item.section === 'usa' ? '#grid-usa' : (item.section === 'rd' ? '#grid-rd' : '#grid-special');
-        const res = results[item.id] || '';
+        const last = Store.getLastRecord(item.id);
+        const res  = results[item.id] || (last ? last.value : '');
         const el = document.createElement('div');
         el.className = 'card';
         el.innerHTML = `
@@ -486,7 +494,7 @@ function maybeAdvanceSelectedDate(iso){
       let html = '';
       const groups = { usa:[], rd:[], special:[] };
       catalog.forEach(it => { if (vis[it.id]) groups[it.section].push(it); });
-      function renderGroup(title, arr){ if(!arr.length) return ''; let rows = arr.map(it=>`<tr data-id="${it.id}"><td>${it.section.toUpperCase()}</td><td>${it.lottery}</td><td>${it.draw}</td><td>${it.drawTime}</td><td>${it.closeTime}</td><td><input type="text" value="${res[it.id]||''}" data-res /></td><td><button class="btn saveOne">Save</button></td></tr>`).join(''); return `<h3 class="mb6">${title}</h3><table class="table"><thead><tr><th>Sección</th><th>Lotería</th><th>Draw</th><th>Hora sorteo</th><th>Hora cierre</th><th>Resultado</th><th></th></tr></thead><tbody>${rows}</tbody></table>`; }
+      function renderGroup(title, arr){ if(!arr.length) return ''; let rows = arr.map(it=>`<tr data-id="${it.id}"><td>${it.section.toUpperCase()}</td><td>${it.lottery}</td><td>${it.draw}</td><td>${it.drawTime}</td><td>${it.closeTime}</td><td><input type="text" value="${res[it.id] || (Store.getLastRecord(it.id)?.value || '')}" data-res /></td><td><button class="btn saveOne">Save</button></td></tr>`).join(''); return `<h3 class="mb6">${title}</h3><table class="table"><thead><tr><th>Sección</th><th>Lotería</th><th>Draw</th><th>Hora sorteo</th><th>Hora cierre</th><th>Resultado</th><th></th></tr></thead><tbody>${rows}</tbody></table>`; }
       html += renderGroup('USA Lotteries', groups.usa);
       html += renderGroup('Santo Domingo Lotteries', groups.rd);
       html += renderGroup('Special Lotteries', groups.special);
