@@ -47,6 +47,7 @@ async function upsertDrawResult({ state, draw, dateISO, pick3, pick4, source='of
     },
     { upsert: true }
   );
+}
 
 // ── Mongo singleton ───────────────────────────────────────────────────────────
 let __mongo = { client: null, db: null };
