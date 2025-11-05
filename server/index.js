@@ -5,12 +5,19 @@ import * as cheerio from 'cheerio';
 import dayjs from 'dayjs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import 'dotenv/config';
+import { MongoClient } from 'mongodb';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
 
 const app = express();
 app.use(cors());
+
+// Connect to Mongo on boot
+connectMongo().then(() => console.log('Mongo connected')).catch(err => {
+  console.error('Mongo connection failed:', err.message);
+});
 
 const HTTP = {
   timeout: 20000,
@@ -27,6 +34,49 @@ async function fetchHtml(url){
   const {data} = await axios.get(url, { ...HTTP, params: { t: Date.now() }});
   return data;
 }
+
+async function upsertDrawResult({ state, draw, dateISO, pick3, pick4, source='official', meta={} }) {
+  if (!dateISO || !pick3 || !pick4) return; // only store complete pairs
+  const db = getDb();
+  const combo = `${pick3}-${pick4}`;
+  await db.collection('draw_results').updateOne(
+    { state, draw, dateISO },
+    {
+      $set: { state, draw, dateISO, pick3, pick4, combo, source, meta },
+      $setOnInsert: { scrapedAt: new Date() }
+    },
+    { upsert: true }
+  );
+
+// ── Mongo singleton ───────────────────────────────────────────────────────────
+let __mongo = { client: null, db: null };
+
+async function connectMongo() {
+  if (__mongo.db) return __mongo.db;
+  const uri = process.env.MONGODB_URI;
+  const dbName = process.env.MONGODB_DB || 'beastbet';
+  if (!uri) throw new Error('MONGODB_URI missing');
+
+  const client = new MongoClient(uri, { maxPoolSize: 10 });
+  await client.connect();
+  const db = client.db(dbName);
+
+  // Ensure indexes once
+  await db.collection('draw_results').createIndex(
+    { state: 1, draw: 1, dateISO: 1 }, { unique: true }
+  );
+  await db.collection('draw_results').createIndex(
+    { state: 1, draw: 1, dateISO: -1 }
+  );
+
+  __mongo.client = client;
+  __mongo.db = db;
+  return db;
+}
+const getDb = () => {
+  if (!__mongo.db) throw new Error('Mongo not connected yet');
+  return __mongo.db;
+};
 
 // ── helpers to parse date strings we see on pages ──────────────────────────────
 // Extract "the first n-digit result" from the main results area (no label needed)
@@ -490,12 +540,56 @@ app.get('/api/:state/latest', async (req,res)=>{
   if(!U[key]) return res.status(404).json({error:'unknown_state'});
   try{
     const data = await combinedPair(key);
-    res.status(200).json(data);
-  }catch(e){
-    console.log('[ERROR]', key, e?.response?.status || e.message);
-    res.status(200).json({ dateISO: eastCoastDateISO(), midday:null, evening:null, night:null });
+    // Persist to Mongo (one doc per draw occurrence)
+  try {
+    const { dates = {}, midday, evening, night } = data;
+    if (midday && dates.midday) {
+      const [p3, p4] = midday.split('-');
+      await upsertDrawResult({ state: key, draw: 'Midday',  dateISO: dates.midday,  pick3: p3, pick4: p4 });
+    }
+    if (evening && dates.evening) {
+      const [p3, p4] = evening.split('-');
+      await upsertDrawResult({ state: key, draw: 'Evening', dateISO: dates.evening, pick3: p3, pick4: p4 });
+    }
+    if (night && dates.night) {
+      const [p3, p4] = night.split('-');
+      await upsertDrawResult({ state: key, draw: 'Night',   dateISO: dates.night,   pick3: p3, pick4: p4 });
+    }
+  } catch (e) {
+    console.warn('Mongo upsert skipped:', e.message);
   }
+      res.status(200).json(data);
+    }catch(e){
+      console.log('[ERROR]', key, e?.response?.status || e.message);
+      res.status(200).json({ dateISO: eastCoastDateISO(), midday:null, evening:null, night:null });
+    }
 });
+
+// GET /api/:state/history?draw=Evening&from=YYYY-MM-DD&to=YYYY-MM-DD
+app.get('/api/:state/history', async (req, res) => {
+  const state = req.params.state;
+  const draw  = req.query.draw || undefined; // optional
+  const from  = req.query.from || '1900-01-01';
+  const to    = req.query.to   || '9999-12-31';
+
+  const q = { state, dateISO: { $gte: from, $lte: to } };
+  if (draw) q.draw = draw;
+
+  const rows = await getDb().collection('draw_results')
+    .find(q).sort({ dateISO: -1, draw: 1 }).project({ _id: 0 }).toArray();
+
+  res.json({ state, draw: draw || null, from, to, results: rows });
+});
+
+// GET /api/:state/by-date/:dateISO
+app.get('/api/:state/by-date/:dateISO', async (req, res) => {
+  const { state, dateISO } = req.params;
+  const rows = await getDb().collection('draw_results')
+    .find({ state, dateISO }).project({ _id: 0 }).toArray();
+  const pack = { state, dateISO, draws: {} };
+  for (const r of rows) pack.draws[r.draw] = { pick3: r.pick3, pick4: r.pick4, combo: r.combo };
+  res.json(pack);
+});  
 
 // Static UI + health
 app.use(express.static(path.join(__dirname,'public')));
