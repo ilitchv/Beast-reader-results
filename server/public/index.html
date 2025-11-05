@@ -436,15 +436,24 @@ function maybeAdvanceSelectedDate(iso){
       }
     }
 
-    // Minimal history view (uses legacy history storage so it works with existing data)
-    function openHistory(id){
-      const [section,state,draw] = id.split('/');
-      const key = `${section}/${state}/${draw}`;
-      const hist = readJSON(LS.LEGACY_HISTORY, {});
-      const arr = hist[key] || [];
-      const msg = arr.slice(-12).map(x=>`${x.ts?.slice(0,16).replace('T',' ')} — ${x.value}`).join('\n') || 'Sin historial';
-      alert(`${id}\n\n${msg}`);
-    }
+    async function openHistory(id){
+  const [section, state, draw] = id.split('/');
+  try {
+    // Try server history (up to 50 lines)
+    const r = await fetch(api(`/api/${state}/history?draw=${encodeURIComponent(draw)}&from=1900-01-01&to=9999-12-31`));
+    if (!r.ok) throw new Error('no server history');
+    const data = await r.json();
+    const lines = (data.results || []).slice(0, 50).map(x => `${x.dateISO} — ${x.combo}`).join('\n') || 'No history';
+    alert(`${id}\n\n${lines}`);
+  } catch (_) {
+    // Legacy fallback (current behavior)
+    const key = `${section}/${state}/${draw}`;
+    const hist = readJSON(LS.LEGACY_HISTORY, {});
+    const arr = hist[key] || [];
+    const msg = arr.slice(-12).map(x=>`${x.ts?.slice(0,16).replace('T',' ')} — ${x.value}`).join('\n') || 'Sin historial';
+    alert(`${id}\n\n${msg}`);
+  }
+}
 
     /**********************************************************
      * Admin: drawer wiring (theme/lang/date) + tables
