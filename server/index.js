@@ -19,6 +19,18 @@ connectMongo().then(() => console.log('Mongo connected')).catch(err => {
   console.error('Mongo connection failed:', err.message);
 });
 
+app.use(async (req, res, next) => {
+  try {
+    await connectMongo(); // no-op after first connect
+    next();
+  } catch (e) {
+    console.error('Mongo connect error:', e.message);
+    // still allow /healthz to work; block others
+    if (req.path === '/healthz') return next();
+    res.status(503).json({ ok: false, error: 'mongo_unavailable' });
+  }
+});
+
 const HTTP = {
   timeout: 20000,
   headers: {
@@ -37,7 +49,7 @@ async function fetchHtml(url){
 
 async function upsertDrawResult({ state, draw, dateISO, pick3, pick4, source='official', meta={} }) {
   if (!dateISO || !pick3 || !pick4) return; // only store complete pairs
-  const db = getDb();
+  const db = await getDb();
   const combo = `${pick3}-${pick4}`;
   await db.collection('draw_results').updateOne(
     { state, draw, dateISO },
@@ -74,11 +86,9 @@ async function connectMongo() {
   __mongo.db = db;
   return db;
 }
-const getDb = () => {
-  if (!__mongo.db) throw new Error('Mongo not connected yet');
-  return __mongo.db;
+const getDb = async () => {
+  return await connectMongo();  // returns the same db once connected
 };
-
 // ── helpers to parse date strings we see on pages ──────────────────────────────
 // Extract "the first n-digit result" from the main results area (no label needed)
 function extractFirstInLatest($, n) {
@@ -568,6 +578,7 @@ app.get('/api/:state/latest', async (req,res)=>{
 
 // GET /api/:state/history?draw=Evening&from=YYYY-MM-DD&to=YYYY-MM-DD
 app.get('/api/:state/history', async (req, res) => {
+  const db = await getDb();
   const state = req.params.state;
   const draw  = req.query.draw || undefined; // optional
   const from  = req.query.from || '1900-01-01';
@@ -584,6 +595,7 @@ app.get('/api/:state/history', async (req, res) => {
 
 // GET /api/:state/by-date/:dateISO
 app.get('/api/:state/by-date/:dateISO', async (req, res) => {
+  const db = await getDb();
   const { state, dateISO } = req.params;
   const rows = await getDb().collection('draw_results')
     .find({ state, dateISO }).project({ _id: 0 }).toArray();
